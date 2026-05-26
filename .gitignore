@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project runtime
+data/
+output/
+logs/
+*.db
+.server.pid
+
+# Alma
+.alma-snapshots/
+
+# Env / secrets
+.env
+.env.*
+*.key
+
+# Pytest
+.pytest_cache/
+
+# Task prompt (temporary)
+task16_prompt.md
