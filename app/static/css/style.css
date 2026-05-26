@@ -173,6 +173,156 @@ html, body {
   background: var(--bg-tertiary);
 }
 
+/* ---- Panel Tabs ---- */
+.panel-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0;
+}
+
+.panel-tab {
+  flex: 1;
+  padding: 12px 16px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+}
+
+.panel-tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.panel-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---- Panel View ---- */
+.panel-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ---- Prompt Library ---- */
+.prompt-library {
+  padding: 16px 20px;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.prompt-save-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.prompt-save-row textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.btn-save-prompt {
+  padding: 8px 16px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.prompt-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 0;
+  font-size: 13px;
+}
+
+.prompt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  transition: border-color var(--transition);
+}
+
+.prompt-card:hover {
+  border-color: #363a50;
+}
+
+.prompt-card-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+
+.prompt-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.prompt-btn {
+  padding: 4px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.prompt-btn-copy {
+  color: var(--accent);
+  background: rgba(79, 110, 247, 0.1);
+  border-color: rgba(79, 110, 247, 0.2);
+}
+
+.prompt-btn-copy:hover {
+  background: rgba(79, 110, 247, 0.25);
+}
+
+.prompt-btn-use {
+  color: var(--status-succeeded);
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.prompt-btn-use:hover {
+  background: rgba(52, 211, 153, 0.25);
+}
+
+.prompt-btn-delete {
+  color: var(--status-failed);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.prompt-btn-delete:hover {
+  background: rgba(248, 113, 113, 0.25);
+}
+
 /* Monitor Panel — Main Area */
 .panel-monitor {
   flex: 1;

@@ -27,11 +27,14 @@
     </header>
 
     <div class="main-layout">
-      <!-- Left Panel: Task Submission -->
+      <!-- Left Panel: Task Submission + Prompt Library -->
       <aside class="panel panel-submit">
-        <div class="panel-header">
-          <h2>New Task</h2>
+        <div class="panel-header panel-tabs">
+          <button class="panel-tab active" id="tabGenerate">Generate</button>
+          <button class="panel-tab" id="tabPrompts">Prompts</button>
         </div>
+        <!-- Generate View -->
+        <div class="panel-view" id="viewGenerate" style="display:flex;">
         <form id="taskForm" class="form">
           <!-- Prompt -->
           <div class="form-group form-group-prompt">
@@ -167,7 +170,7 @@
                 <option value="">auto</option>
                 <option value="low">low</option>
                 <option value="medium">medium</option>
-                <option value="high">high</option>
+                <option value="high" selected>high</option>
               </select>
             </div>
             <div class="form-group">
@@ -208,6 +211,17 @@
             Generate
           </button>
         </form>
+        </div><!-- /viewGenerate -->
+        <!-- Prompt Library View -->
+        <div class="panel-view prompt-library" id="viewPrompts" style="display:none;">
+          <div class="prompt-save-row">
+            <textarea id="savePromptText" rows="3" placeholder="Paste or type a prompt to save..."></textarea>
+            <button class="btn-submit btn-save-prompt" id="savePromptBtn" type="button">Save</button>
+          </div>
+          <div class="prompt-list" id="promptList">
+            <div class="prompt-empty">No saved prompts yet.</div>
+          </div>
+        </div>
       </aside>
 
       <!-- Right Panel: Task Monitor -->

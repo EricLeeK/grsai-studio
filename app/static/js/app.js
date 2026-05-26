@@ -13,6 +13,9 @@
   let lightboxIndex = 0;
   const durationTimers = new Map();   // taskId -> intervalId
   const frozenDurations = new Map();  // taskId -> final duration string
+  let currentView = 'generate';
+  let promptLibrary = [];
+  let savedPromptText = '';  // preserve prompt text during tab switch
 
   // ---- DOM refs ----
   const $ = (sel) => document.querySelector(sel);
@@ -42,7 +45,7 @@
   function formatTime(iso) {
     if (!iso) return '—';
     const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   }
 
   function elapsed(created) {
@@ -71,6 +74,140 @@
     if (id !== undefined) {
       clearInterval(id);
       durationTimers.delete(taskId);
+    }
+  }
+
+  // ---- Prompt Library (localStorage) ----
+
+  function loadPromptLibrary() {
+    try {
+      promptLibrary = JSON.parse(localStorage.getItem('grsai_prompt_library') || '[]');
+    } catch { promptLibrary = []; }
+  }
+
+  function savePromptLibrary() {
+    localStorage.setItem('grsai_prompt_library', JSON.stringify(promptLibrary));
+  }
+
+  function renderPromptLibrary() {
+    const list = $('#promptList');
+    if (!list) return;
+    if (promptLibrary.length === 0) {
+      list.innerHTML = '<div class="prompt-empty">No saved prompts yet.</div>';
+      return;
+    }
+    list.innerHTML = promptLibrary.map((p) => `
+      <div class="prompt-card" data-id="${p.id}">
+        <div class="prompt-card-text">${esc(p.text)}</div>
+        <div class="prompt-card-actions">
+          <button class="prompt-btn prompt-btn-copy" data-id="${p.id}">Copy</button>
+          <button class="prompt-btn prompt-btn-use" data-id="${p.id}">Use</button>
+          <button class="prompt-btn prompt-btn-delete" data-id="${p.id}">Delete</button>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.prompt-btn-copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const item = promptLibrary.find((p) => String(p.id) === btn.dataset.id);
+        if (!item) return;
+        await navigator.clipboard.writeText(item.text);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    });
+
+    list.querySelectorAll('.prompt-btn-use').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = promptLibrary.find((p) => String(p.id) === btn.dataset.id);
+        if (!item) return;
+        switchView('generate');
+        const promptEl = $('#prompt');
+        promptEl.value = item.text;
+        promptEl.focus();
+      });
+    });
+
+    list.querySelectorAll('.prompt-btn-delete').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        promptLibrary = promptLibrary.filter((p) => String(p.id) !== btn.dataset.id);
+        savePromptLibrary();
+        renderPromptLibrary();
+      });
+    });
+  }
+
+  function addPrompt(text) {
+    if (!text.trim()) return;
+    promptLibrary.unshift({ id: Date.now(), text: text.trim(), createdAt: new Date().toISOString() });
+    savePromptLibrary();
+    renderPromptLibrary();
+  }
+
+  // ---- Form State Persistence (localStorage) ----
+
+  function saveFormState() {
+    const activeSize = getActiveSizeSelect();
+    const state = {
+      model: modelSelect.value,
+      size: activeSize ? activeSize.value : '',
+      quality: $('#quality').value,
+      count: $('#count').value,
+      parallel: $('#parallel').checked,
+    };
+    localStorage.setItem('grsai_form_state', JSON.stringify(state));
+  }
+
+  function restoreFormState() {
+    let state;
+    try {
+      state = JSON.parse(localStorage.getItem('grsai_form_state'));
+    } catch { state = null; }
+    if (!state) {
+      // First visit defaults
+      $('#quality').value = 'high';
+      return;
+    }
+    if (state.model) modelSelect.value = state.model;
+    updateSizeControl();
+    const activeSize = getActiveSizeSelect();
+    if (activeSize && state.size !== undefined) activeSize.value = state.size;
+    if (state.quality) $('#quality').value = state.quality;
+    if (state.count) $('#count').value = state.count;
+    if (state.parallel !== undefined) $('#parallel').checked = state.parallel;
+  }
+
+  function getActiveSizeSelect() {
+    const model = modelSelect.value;
+    if (model === 'gpt-image-2') return sizeGpt;
+    if (model === 'gpt-image-2-vip') return sizeGptVip;
+    return sizeSelect;
+  }
+
+  // ---- View Switching (Generate / Prompt Library) ----
+
+  function switchView(view) {
+    currentView = view;
+    const genView = $('#viewGenerate');
+    const libView = $('#viewPrompts');
+    const tabGen = $('#tabGenerate');
+    const tabLib = $('#tabPrompts');
+    if (view === 'generate') {
+      genView.style.display = 'flex';
+      libView.style.display = 'none';
+      tabGen.classList.add('active');
+      tabLib.classList.remove('active');
+      // Restore prompt text
+      const promptEl = $('#prompt');
+      if (savedPromptText) promptEl.value = savedPromptText;
+    } else {
+      // Save prompt text before switching away
+      savedPromptText = $('#prompt').value;
+      genView.style.display = 'none';
+      libView.style.display = 'flex';
+      tabGen.classList.remove('active');
+      tabLib.classList.add('active');
+      renderPromptLibrary();
     }
   }
 
@@ -130,8 +267,13 @@
     }
   }
 
-  modelSelect.addEventListener('change', updateSizeControl);
-  updateSizeControl();
+  modelSelect.addEventListener('change', () => { updateSizeControl(); saveFormState(); });
+  // Save form state on any relevant field change
+  [sizeSelect, sizeGpt, sizeGptVip, $('#quality')].forEach((el) => {
+    el.addEventListener('change', saveFormState);
+  });
+  $('#count').addEventListener('input', saveFormState);
+  $('#parallel').addEventListener('change', saveFormState);
 
   // ---- File Upload ----
 
@@ -247,11 +389,11 @@
 
       const data = await res.json();
 
-      // Reset form
-      form.reset();
+      // Clear prompt and uploads only — preserve model/size/quality/count/parallel
+      $('#prompt').value = '';
+      savedPromptText = '';
       selectedFiles = [];
       renderPreviews();
-      updateSizeControl();
 
       // Poll immediately to show new task
       await pollTasks();
@@ -565,7 +707,19 @@
     if (e.key === 'ArrowRight') lightboxNext();
   });
 
+  // ---- Tab Switching ----
+  $('#tabGenerate').addEventListener('click', () => switchView('generate'));
+  $('#tabPrompts').addEventListener('click', () => switchView('prompts'));
+  $('#savePromptBtn').addEventListener('click', () => {
+    const ta = $('#savePromptText');
+    addPrompt(ta.value);
+    ta.value = '';
+  });
+
   // ---- Init ----
+  loadPromptLibrary();
+  restoreFormState();
+  updateSizeControl();
   checkHealth();
   setInterval(checkHealth, 15000);
   startPolling();
