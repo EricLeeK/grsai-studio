@@ -11,6 +11,8 @@
   let pollTimer = null;
   let lightboxImages = [];
   let lightboxIndex = 0;
+  const durationTimers = new Map();   // taskId -> intervalId
+  const frozenDurations = new Map();  // taskId -> final duration string
 
   // ---- DOM refs ----
   const $ = (sel) => document.querySelector(sel);
@@ -52,6 +54,24 @@
     if (m < 60) return `${m}m ${s % 60}s`;
     const h = Math.floor(m / 60);
     return `${h}h ${m % 60}m`;
+  }
+
+  function startDurationTicker(taskId, createdAt) {
+    if (durationTimers.has(taskId) || frozenDurations.has(taskId)) return;
+    const update = () => {
+      const span = taskList.querySelector(`.task-card[data-id="${taskId}"] .duration-value`);
+      if (span) span.textContent = elapsed(createdAt);
+    };
+    update();
+    durationTimers.set(taskId, setInterval(update, 1000));
+  }
+
+  function stopDurationTicker(taskId) {
+    const id = durationTimers.get(taskId);
+    if (id !== undefined) {
+      clearInterval(id);
+      durationTimers.delete(taskId);
+    }
   }
 
   function truncate(str, len = 100) {
@@ -266,7 +286,7 @@
 
   function startPolling() {
     pollTasks();
-    pollTimer = setInterval(pollTasks, 2500);
+    pollTimer = setInterval(pollTasks, 5000);
   }
 
   // ---- Filters ----
@@ -353,7 +373,8 @@
     if (params.count > 1) detailsHtml += `<span class="task-detail"><strong>Count:</strong> ${params.count}</span>`;
     detailsHtml += `<span class="task-detail"><strong>Created:</strong> ${formatTime(task.created_at)}</span>`;
     if (status === 'running' || status === 'succeeded') {
-      detailsHtml += `<span class="task-detail"><strong>Duration:</strong> ${elapsed(task.created_at)}</span>`;
+      const dur = frozenDurations.get(String(task.id)) || elapsed(task.created_at);
+      detailsHtml += `<span class="task-detail"><strong>Duration:</strong> <span class="duration-value">${dur}</span></span>`;
     }
 
     // Status badge
@@ -425,6 +446,18 @@
       ${errorHtml}
       ${imagesHtml}
     `;
+
+    // Manage duration ticker
+    if (status === 'running') {
+      startDurationTicker(String(task.id), task.created_at);
+    } else if (status === 'succeeded') {
+      if (!frozenDurations.has(String(task.id))) {
+        frozenDurations.set(String(task.id), elapsed(task.created_at));
+      }
+      stopDurationTicker(String(task.id));
+    } else {
+      stopDurationTicker(String(task.id));
+    }
 
     // Attach delete handler
     const deleteBtn = card.querySelector('.task-delete-btn');
