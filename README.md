@@ -4,6 +4,18 @@ Grsai 生图 API 的 Web 管理界面，支持多模型、并行生成、实时�
 
 ## 快速启动
 
+### 1. 配置 API Key
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env，填入你的 Grsai API Key
+# GRSAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### 2. 启动服务
+
 ```bash
 # 前台启动（可看日志，Ctrl+C 停止）
 bash start.sh
@@ -35,7 +47,7 @@ bash start.sh 9000
 grsai-studio/
 ├── app/
 │   ├── main.py              # FastAPI 入口
-│   ├── config.py             # 配置
+│   ├── config.py             # 配置（自动加载 .env）
 │   ├── database.py           # SQLite 数据库
 │   ├── models.py             # 数据模型
 │   ├── schemas.py            # Pydantic schemas
@@ -47,9 +59,12 @@ grsai-studio/
 │   │   ├── css/style.css
 │   │   └── js/app.js
 │   └── templates/index.html
+├── scripts/
+│   └── generate.sh           # Grsai 生图脚本
 ├── tests/                    # 测试
-├── data/                     # SQLite 数据库文件
-├── output/                   # 生成的图片
+├── .env.example              # 环境变量模板
+├── data/                     # SQLite 数据库文件（gitignore）
+├── output/                   # 生成的图片（gitignore）
 ├── requirements.txt
 ├── start.sh                  # 前台启动
 ├── start-bg.sh               # 后台启动

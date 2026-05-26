@@ -33,8 +33,10 @@ logs/
 
 # Env / secrets
 .env
-.env.*
+.env.local
+.env.production
 *.key
+!.env.example
 
 # Pytest
 .pytest_cache/

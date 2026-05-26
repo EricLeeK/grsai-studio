@@ -7,7 +7,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-GENERATE_SCRIPT = Path.home() / ".config" / "alma" / "skills" / "grsai-image" / "generate.sh"
+GENERATE_SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "generate.sh"
 
 
 @dataclass
