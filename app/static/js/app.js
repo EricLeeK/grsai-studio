@@ -217,14 +217,10 @@
 
   function imageUrl(imagePath) {
     if (!imagePath) return '';
-    // Strip absolute path prefix, keep only relative part from "output/"
-    const idx = imagePath.indexOf('output/');
-    if (idx !== -1) return '/' + imagePath.slice(idx);
-    // Fallback: use the filename under the assumption of output/{task_id}/{gen_index}/file
     const parts = imagePath.replace(/\\/g, '/').split('/');
     const outIdx = parts.indexOf('output');
     if (outIdx !== -1) return '/' + parts.slice(outIdx).join('/');
-    return imagePath;
+    return '';
   }
 
   // ---- Health Check ----
@@ -539,8 +535,12 @@
 
     // Thumbnail for succeeded tasks (first image as compact inline preview)
     let thumbnailHtml = '';
-    if (status === 'succeeded' && images.length > 0) {
-      const src = imageUrl(images[0].image_path);
+    const renderableImages = images
+      .map((img) => ({ ...img, src: imageUrl(img.image_path) }))
+      .filter((img) => img.src);
+
+    if (status === 'succeeded' && renderableImages.length > 0) {
+      const src = renderableImages[0].src;
       thumbnailHtml = `<div class="task-thumbnail" data-task="${task.id}" data-index="0">
         <img class="task-thumbnail-img" src="${esc(src)}" alt="Preview" loading="lazy">
       </div>`;
@@ -548,9 +548,9 @@
 
     // Full images gallery
     let imagesHtml = '';
-    if (images.length > 0) {
-      const imgTags = images.map((img, i) => {
-        const src = imageUrl(img.image_path);
+    if (renderableImages.length > 0) {
+      const imgTags = renderableImages.map((img, i) => {
+        const src = img.src;
         return `<div class="task-image-wrapper" data-task="${task.id}" data-index="${i}">
           <img class="task-image" src="${esc(src)}" alt="Generated image ${i + 1}" loading="lazy">
           <div class="task-image-overlay">
@@ -640,7 +640,8 @@
         const taskId = wrapper.dataset.task;
         const taskData = tasks.find((t) => String(t.id) === taskId);
         if (!taskData) return;
-        openLightbox(taskData.images, parseInt(wrapper.dataset.index, 10));
+        const renderable = (taskData.images || []).filter((img) => imageUrl(img.image_path));
+        openLightbox(renderable, parseInt(wrapper.dataset.index, 10));
       });
     });
   }
@@ -659,10 +660,13 @@
   // ---- Lightbox ----
 
   function openLightbox(images, index) {
-    lightboxImages = images.map((img) => ({
-      src: imageUrl(img.image_path),
-      id: img.id,
-    }));
+    lightboxImages = images
+      .map((img) => ({
+        src: imageUrl(img.image_path),
+        id: img.id,
+      }))
+      .filter((img) => img.src);
+    if (lightboxImages.length === 0) return;
     lightboxIndex = index;
     renderLightbox();
     lightbox.classList.add('open');
