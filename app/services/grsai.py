@@ -63,7 +63,7 @@ def run_generate(
             cmd,
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=1100,
         )
 
         if result.returncode != 0:
@@ -84,8 +84,8 @@ def run_generate(
         return GrsaiResult(success=True, image_path=image_path)
 
     except subprocess.TimeoutExpired:
-        logger.error("generate.sh timed out after 600s")
-        return GrsaiResult(success=False, error="Generation timed out after 600 seconds")
+        logger.error("generate.sh timed out after 1100s")
+        return GrsaiResult(success=False, error="Generation timed out after 1100 seconds")
     except Exception as e:
         logger.error("Unexpected error running generate.sh: %s", e)
         return GrsaiResult(success=False, error=str(e))

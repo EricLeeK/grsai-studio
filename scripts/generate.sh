@@ -28,6 +28,8 @@ REFS=""
 ASYNC_MODE="false"
 QUALITY="auto"
 HELP="false"
+POLL_INTERVAL=5
+POLL_ATTEMPTS=200
 
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
@@ -126,17 +128,26 @@ else
   ASPECT="$RATIO"
 fi
 
+REQUEST_BODY_FILE=$(mktemp)
+IMAGES_JSON_FILE=$(mktemp)
+trap 'rm -f "$REQUEST_BODY_FILE" "$IMAGES_JSON_FILE"' EXIT
+printf '%s' "$IMAGES_JSON" > "$IMAGES_JSON_FILE"
+
 # --- Build request body using python for safe JSON ---
-BODY=$(python3 -c "
+python3 -c "
 import json, sys
 
 model = sys.argv[1]
 prompt = sys.argv[2]
-images = json.loads(sys.argv[3])
+images_file = sys.argv[3]
 aspect = sys.argv[4]
 size = sys.argv[5]
 async_mode = sys.argv[6]
 quality = sys.argv[7]
+output_file = sys.argv[8]
+
+with open(images_file, 'r', encoding='utf-8') as f:
+    images = json.load(f)
 
 body = {
     'model': model,
@@ -151,8 +162,9 @@ body = {
 if not model.startswith('gpt-image-2'):
     body['imageSize'] = size
 
-print(json.dumps(body))
-" "$MODEL" "$PROMPT" "$IMAGES_JSON" "$ASPECT" "$SIZE" "$ASYNC_MODE" "$QUALITY")
+with open(output_file, 'w', encoding='utf-8') as f:
+    json.dump(body, f)
+" "$MODEL" "$PROMPT" "$IMAGES_JSON_FILE" "$ASPECT" "$SIZE" "$ASYNC_MODE" "$QUALITY" "$REQUEST_BODY_FILE"
 
 echo "Generating with model: $MODEL" >&2
 echo "  Ratio: $ASPECT | Size: $SIZE" >&2
@@ -162,8 +174,8 @@ echo "  Ratio: $ASPECT | Size: $SIZE" >&2
 RESPONSE=$(curl -s -X POST "${BASE_URL}/v1/api/generate" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
-  -d "$BODY" \
-  --max-time 300)
+  --data-binary "@${REQUEST_BODY_FILE}" \
+  --max-time 1000)
 
 # --- Check for errors ---
 STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
@@ -181,8 +193,8 @@ if [[ "$STATUS" == "running" ]]; then
   echo "Async task created: $TASK_ID" >&2
   echo "  Polling for result..." >&2
 
-  for i in $(seq 1 60); do
-    sleep 5
+  for i in $(seq 1 "$POLL_ATTEMPTS"); do
+    sleep "$POLL_INTERVAL"
     POLL=$(curl -s "${BASE_URL}/v1/api/result?id=${TASK_ID}" \
       -H "Authorization: Bearer ${API_KEY}")
     POLL_STATUS=$(echo "$POLL" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
@@ -196,8 +208,14 @@ if [[ "$STATUS" == "running" ]]; then
     fi
 
     PROGRESS=$(echo "$POLL" | python3 -c "import sys,json; print(json.load(sys.stdin).get('progress',0))" 2>/dev/null || echo "?")
-    echo "  Progress: ${PROGRESS}% (attempt $i/60)" >&2
+    echo "  Progress: ${PROGRESS}% (attempt $i/$POLL_ATTEMPTS)" >&2
   done
+
+  if [[ "$POLL_STATUS" != "succeeded" ]]; then
+    WAITED=$((POLL_INTERVAL * POLL_ATTEMPTS))
+    echo "Async task timed out after ${WAITED}s: ${TASK_ID}" >&2
+    exit 1
+  fi
 fi
 
 # --- Extract image URL ---
