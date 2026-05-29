@@ -14,6 +14,11 @@ class TaskCreate(BaseModel):
     parallel: bool = False
     ref_image_paths: Optional[list[str]] = None
     reference_image_ids: Optional[list[int]] = None
+    comic_project_id: Optional[int] = None
+    comic_page_type: Optional[str] = None
+    comic_page_number: Optional[int] = None
+    comic_ip_mode: bool = False
+    comic_auto_prompt_ids: Optional[list[str]] = None
 
 
 class ImageOut(BaseModel):
@@ -46,6 +51,34 @@ class ReferenceImageOut(BaseModel):
     stored_filename: str
     image_path: str
     image_url: str
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ComicProjectCreate(BaseModel):
+    name: str = "Untitled Comic"
+
+
+class ComicProjectOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ComicCandidateOut(BaseModel):
+    id: int
+    comic_project_id: int
+    page_type: str
+    page_number: Optional[int] = None
+    task_id: int
+    generated_image_id: int
+    image_path: str
+    image_url: Optional[str] = None
+    is_selected: bool
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}

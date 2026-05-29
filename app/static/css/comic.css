@@ -1,0 +1,271 @@
+.comic-app {
+  height: 100vh;
+}
+
+.comic-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 410px) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.comic-submit {
+  background: rgba(23, 25, 22, 0.94);
+  border-right: 1px solid var(--line);
+}
+
+.comic-project-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.comic-project-bar span,
+.comic-library-head h3 {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.comic-project-bar strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 15px;
+}
+
+.comic-page-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+}
+
+.comic-library {
+  padding: 18px;
+  gap: 16px;
+}
+
+.comic-library-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.comic-library-section:last-child {
+  flex: 1;
+}
+
+.comic-library-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.comic-stage-panel {
+  background:
+    linear-gradient(90deg, rgba(232, 226, 210, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(232, 226, 210, 0.026) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.comic-preview,
+.comic-task-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.comic-preview {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: clamp(14px, 2vw, 24px);
+}
+
+.comic-empty {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  color: var(--text-muted);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(16, 17, 16, 0.34);
+}
+
+.comic-carousel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(260px, 1fr) minmax(120px, 0.42fr);
+  align-items: center;
+  gap: clamp(10px, 2vw, 24px);
+  min-height: 0;
+}
+
+.comic-center {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  height: 100%;
+  perspective: 1200px;
+}
+
+#currentComicImage {
+  display: block;
+  max-width: min(100%, 820px);
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-input);
+  box-shadow: var(--shadow-lg);
+  object-fit: contain;
+  transition: transform var(--ease), opacity var(--ease);
+}
+
+.comic-side {
+  min-height: min(48vh, 420px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background-color: rgba(16, 17, 16, 0.58);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  opacity: 0.48;
+  filter: brightness(0.48) saturate(0.68);
+  transform: scale(0.84);
+  transition: opacity var(--ease), transform var(--ease), filter var(--ease), border-color var(--fast);
+}
+
+.comic-side:not(:disabled):hover {
+  opacity: 0.72;
+  filter: brightness(0.62) saturate(0.78);
+  border-color: var(--accent-line);
+  transform: scale(0.9);
+}
+
+.comic-side:disabled {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.candidate-nav {
+  position: absolute;
+  left: 50%;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  color: var(--text);
+  background: rgba(16, 17, 16, 0.74);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.candidate-up {
+  top: 12px;
+}
+
+.candidate-down {
+  bottom: 12px;
+}
+
+.candidate-nav:disabled {
+  opacity: 0.24;
+  cursor: default;
+}
+
+.select-candidate-btn {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 4;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.select-candidate-btn.selected {
+  color: var(--green);
+  background: var(--status-succeeded-bg);
+  border-color: rgba(127, 208, 152, 0.34);
+}
+
+.comic-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.comic-page-pill {
+  min-height: 30px;
+  padding: 0 11px;
+  color: var(--text-muted);
+  background: rgba(232, 226, 210, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.comic-page-pill.active {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.comic-task-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.comic-filter-header {
+  justify-content: flex-end;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.comic-task-pane .task-list {
+  padding-top: 16px;
+}
+
+@media (max-width: 980px) {
+  .comic-layout,
+  .apps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comic-layout {
+    overflow-y: auto;
+  }
+
+  .comic-submit,
+  .comic-stage-panel {
+    min-height: 720px;
+  }
+
+  .comic-carousel {
+    grid-template-columns: 1fr;
+  }
+
+  .comic-side {
+    display: none;
+  }
+}

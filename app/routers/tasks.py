@@ -45,6 +45,11 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
         "parallel": body.parallel,
         "ref_image_paths": ref_image_paths or None,
         "reference_image_ids": body.reference_image_ids,
+        "comic_project_id": body.comic_project_id,
+        "comic_page_type": body.comic_page_type,
+        "comic_page_number": body.comic_page_number,
+        "comic_ip_mode": body.comic_ip_mode,
+        "comic_auto_prompt_ids": body.comic_auto_prompt_ids,
     }
     task = Task(prompt=body.prompt, model=body.model, params=params, status="pending")
     db.add(task)
@@ -68,6 +73,11 @@ def create_task_with_upload(
     parallel: bool = Form(False),
     reference_image_ids: list[int] = Form(default=[]),
     ref_image_paths: list[str] = Form(default=[]),
+    comic_project_id: int | None = Form(None),
+    comic_page_type: str | None = Form(None),
+    comic_page_number: int | None = Form(None),
+    comic_ip_mode: bool = Form(False),
+    comic_auto_prompt_ids: list[str] = Form(default=[]),
     ref_images: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
@@ -96,6 +106,11 @@ def create_task_with_upload(
         "parallel": parallel,
         "ref_image_paths": all_ref_image_paths or None,
         "reference_image_ids": reference_image_ids or None,
+        "comic_project_id": comic_project_id,
+        "comic_page_type": comic_page_type,
+        "comic_page_number": comic_page_number,
+        "comic_ip_mode": comic_ip_mode,
+        "comic_auto_prompt_ids": comic_auto_prompt_ids or None,
     }
     task = Task(prompt=prompt, model=model, params=params, status="pending")
     db.add(task)

@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -52,3 +52,43 @@ class ReferenceImage(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+
+
+class ComicProject(Base):
+    __tablename__ = "comic_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    candidates: Mapped[list["ComicCandidate"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+
+
+class ComicCandidate(Base):
+    __tablename__ = "comic_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    comic_project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("comic_projects.id"), nullable=False
+    )
+    page_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    task_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id"), nullable=False)
+    generated_image_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("generated_images.id"), nullable=False
+    )
+    image_path: Mapped[str] = mapped_column(String, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_selected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    project: Mapped["ComicProject"] = relationship(back_populates="candidates")

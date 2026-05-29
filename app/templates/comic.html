@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paper Comic - Grsai Studio</title>
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/style.css?v=20260529-comic">
+  <link rel="stylesheet" href="/static/css/comic.css?v=20260529-comic">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app comic-app">
+    <header class="header">
+      <a class="header-brand header-brand-link" href="/">
+        <div class="brand-mark">G</div>
+        <div class="brand-text">
+          <h1>Paper Comic</h1>
+          <span class="brand-sub">Explainer Pages</span>
+        </div>
+      </a>
+      <div class="header-right">
+        <a class="header-link header-link-secondary" href="/apps">Apps</a>
+        <a class="header-link header-link-secondary" href="/">Generate</a>
+        <div class="header-status">
+          <span class="health-dot" id="healthDot"></span>
+          <span id="healthText">Connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="comic-layout">
+      <aside class="panel panel-submit comic-submit">
+        <div class="comic-project-bar">
+          <div>
+            <span>Current Project</span>
+            <strong id="projectName">Loading...</strong>
+          </div>
+          <button class="prompt-btn" id="newProjectBtn" type="button">New</button>
+        </div>
+
+        <div class="panel-header panel-tabs">
+          <button class="panel-tab active" id="tabComicGenerate">Generate</button>
+          <button class="panel-tab" id="tabComicLibrary">Library</button>
+        </div>
+
+        <div class="panel-view" id="comicGenerateView" style="display:flex;">
+          <form id="comicForm" class="form">
+            <div class="form-group">
+              <label>Page</label>
+              <div class="comic-page-row">
+                <select id="pageType">
+                  <option value="cover">Cover</option>
+                  <option value="numbered">Numbered</option>
+                  <option value="tail">Tail</option>
+                </select>
+                <input type="number" id="pageNumber" min="1" max="20" value="1" aria-label="Page number">
+              </div>
+            </div>
+
+            <div class="form-group form-group-check">
+              <label class="checkbox-label">
+                <input type="checkbox" id="ipMode">
+                <span class="checkmark"></span>
+                Fixed IP mode
+              </label>
+            </div>
+
+            <div class="form-group form-group-prompt">
+              <label for="prompt">Prompt</label>
+              <textarea id="prompt" rows="5" placeholder="Paste the storyboard prompt for this comic page..." required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="model">Model</label>
+              <select id="model" required>
+                <optgroup label="Nano Banana">
+                  <option value="nano-banana">nano-banana</option>
+                  <option value="nano-banana-fast">nano-banana-fast</option>
+                  <option value="nano-banana-2">nano-banana-2</option>
+                  <option value="nano-banana-2-cl">nano-banana-2-cl</option>
+                  <option value="nano-banana-2-4k-cl">nano-banana-2-4k-cl</option>
+                </optgroup>
+                <optgroup label="Nano Banana Pro">
+                  <option value="nano-banana-pro">nano-banana-pro</option>
+                  <option value="nano-banana-pro-cl">nano-banana-pro-cl</option>
+                  <option value="nano-banana-pro-vip">nano-banana-pro-vip</option>
+                  <option value="nano-banana-pro-4k-vip">nano-banana-pro-4k-vip</option>
+                </optgroup>
+                <optgroup label="GPT Image">
+                  <option value="gpt-image-2">gpt-image-2</option>
+                  <option value="gpt-image-2-vip" selected>gpt-image-2-vip</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" id="ratioGroup">
+                <label for="ratio">Aspect Ratio</label>
+                <select id="ratio">
+                  <option value="">auto</option>
+                  <option value="16:9">16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="4:3">4:3</option>
+                  <option value="3:4">3:4</option>
+                  <option value="1:1">1:1</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="size">Size</label>
+                <select id="size">
+                  <option value="">auto</option>
+                  <option value="1024x1024">1024x1024</option>
+                  <option value="1280x720">1280x720</option>
+                  <option value="720x1280">720x1280</option>
+                  <option value="2048x1152">2048x1152</option>
+                  <option value="1152x2048">1152x2048</option>
+                  <option value="3840x2160">3840x2160</option>
+                  <option value="2160x3840">2160x3840</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="quality">Quality</label>
+                <select id="quality">
+                  <option value="">auto</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high" selected>high</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="count">Count</label>
+                <input type="number" id="count" min="1" max="10" value="1">
+              </div>
+            </div>
+
+            <div class="form-group form-group-check">
+              <label class="checkbox-label">
+                <input type="checkbox" id="parallel">
+                <span class="checkmark"></span>
+                Generate in parallel
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label>Reference Images</label>
+              <div class="upload-zone" id="uploadZone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="upload-icon" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Drop temporary images, click, or paste with Command+V</span>
+                <input type="file" id="refImages" multiple accept="image/*" class="upload-input">
+              </div>
+              <div class="reference-picker">
+                <div class="reference-picker-head">
+                  <span>IP References</span>
+                  <button class="reference-refresh" type="button" id="refreshReferenceBtn">Refresh</button>
+                </div>
+                <div class="reference-select-grid" id="referenceSelectGrid"></div>
+              </div>
+              <div class="upload-preview" id="uploadPreview"></div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">Generate Comic Page</button>
+          </form>
+        </div>
+
+        <div class="panel-view comic-library" id="comicLibraryView" style="display:none;">
+          <div class="comic-library-section">
+            <div class="comic-library-head">
+              <h3>IP Reference Images</h3>
+              <label class="reference-upload-btn" id="ipUploadBtn">
+                Upload
+                <input type="file" id="ipReferenceInput" accept="image/*" multiple>
+              </label>
+            </div>
+            <div class="reference-library-grid" id="ipReferenceGrid"></div>
+          </div>
+
+          <div class="comic-library-section">
+            <div class="comic-library-head">
+              <h3>Persistent Prompts</h3>
+              <select id="promptPageType">
+                <option value="cover">Cover</option>
+                <option value="numbered">Numbered</option>
+                <option value="tail">Tail</option>
+              </select>
+            </div>
+            <textarea id="savePromptText" rows="3" placeholder="Save a reusable prompt snippet..."></textarea>
+            <button class="btn-submit btn-save-prompt" id="savePromptBtn" type="button">Save Prompt</button>
+            <div class="prompt-list" id="comicPromptList"></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel comic-stage-panel">
+        <div class="panel-header">
+          <h2 id="rightTitle">Comic Preview</h2>
+          <div class="filter-bar">
+            <button class="filter-btn active" id="previewModeBtn" type="button">Preview</button>
+            <button class="filter-btn" id="tasksModeBtn" type="button">Generation List</button>
+          </div>
+        </div>
+
+        <div class="comic-preview" id="previewPane">
+          <div class="comic-empty" id="comicEmpty">No comic pages yet.</div>
+          <div class="comic-carousel" id="comicCarousel" style="display:none;">
+            <button class="comic-side comic-side-left" id="prevPageBtn" type="button"></button>
+            <div class="comic-center">
+              <button class="candidate-nav candidate-up" id="prevCandidateBtn" type="button">↑</button>
+              <img id="currentComicImage" alt="Current comic page">
+              <button class="candidate-nav candidate-down" id="nextCandidateBtn" type="button">↓</button>
+              <button class="select-candidate-btn" id="selectCandidateBtn" type="button">Select for this page</button>
+            </div>
+            <button class="comic-side comic-side-right" id="nextPageBtn" type="button"></button>
+          </div>
+          <div class="comic-page-nav" id="comicPageNav"></div>
+        </div>
+
+        <div class="comic-task-pane" id="taskPane" style="display:none;">
+          <div class="panel-header comic-filter-header">
+            <div class="filter-bar">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="pending">Pending</button>
+              <button class="filter-btn" data-filter="running">Running</button>
+              <button class="filter-btn" data-filter="succeeded">Succeeded</button>
+              <button class="filter-btn" data-filter="failed">Failed</button>
+            </div>
+          </div>
+          <div class="task-list" id="taskList">
+            <div class="task-empty" id="taskEmpty">No tasks yet</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/static/js/comic.js?v=20260529-comic"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import OUTPUT_DIR
 from app.database import SessionLocal
-from app.models import GeneratedImage, Task
+from app.models import ComicCandidate, GeneratedImage, Task
 from app.services.grsai import run_generate
 
 logger = logging.getLogger(__name__)
@@ -192,7 +192,40 @@ def _save_image(db: Session, task_id: int, image_path: str) -> None:
     img = GeneratedImage(task_id=task_id, image_path=image_path)
     db.add(img)
     db.commit()
+    db.refresh(img)
+    _save_comic_candidate(db, task_id, img)
     logger.info("Saved image for task %d: %s", task_id, image_path)
+
+
+def _save_comic_candidate(db: Session, task_id: int, img: GeneratedImage) -> None:
+    task = db.query(Task).filter(Task.id == task_id).first()
+    params = task.params if task else None
+    if not params or not params.get("comic_project_id") or not params.get("comic_page_type"):
+        return
+
+    project_id = params["comic_project_id"]
+    page_type = params["comic_page_type"]
+    page_number = params.get("comic_page_number")
+    existing = (
+        db.query(ComicCandidate)
+        .filter(ComicCandidate.comic_project_id == project_id)
+        .filter(ComicCandidate.page_type == page_type)
+        .filter(ComicCandidate.page_number.is_(page_number) if page_number is None else ComicCandidate.page_number == page_number)
+        .all()
+    )
+    is_selected = len(existing) == 0
+    candidate = ComicCandidate(
+        comic_project_id=project_id,
+        page_type=page_type,
+        page_number=page_number,
+        task_id=task_id,
+        generated_image_id=img.id,
+        image_path=img.image_path or "",
+        image_url=img.image_url,
+        is_selected=is_selected,
+    )
+    db.add(candidate)
+    db.commit()
 
 
 def _mark_failed(db: Session, task_id: int, error: str) -> None:
