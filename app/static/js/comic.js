@@ -422,6 +422,7 @@
         <div class="prompt-card-actions">
           <button class="prompt-btn prompt-copy" type="button">Copy</button>
           <button class="prompt-btn prompt-use" type="button">Use</button>
+          <button class="prompt-btn prompt-edit" type="button">Edit</button>
           <button class="prompt-btn prompt-auto ${autoPromptIds.has(String(p.id)) ? 'active' : ''}" type="button">Auto tail</button>
           <button class="prompt-btn prompt-delete" type="button">Delete</button>
         </div>
@@ -434,6 +435,18 @@
       card.querySelector('.prompt-use').onclick = () => {
         promptEl.value = item.text;
         switchLeftView('generate');
+      };
+      card.querySelector('.prompt-edit').onclick = () => {
+        const nextText = prompt('Edit prompt', item.text);
+        if (nextText === null) return;
+        item.text = nextText.trim();
+        if (!item.text) {
+          promptLibrary[type] = prompts.filter((p) => p.id !== item.id);
+          autoPromptIds.delete(String(item.id));
+          sessionStorage.setItem('grsai_comic_auto_prompt_ids', JSON.stringify(Array.from(autoPromptIds)));
+        }
+        localStorage.setItem('grsai_comic_prompts', JSON.stringify(promptLibrary));
+        renderPromptLibrary();
       };
       card.querySelector('.prompt-auto').onclick = () => {
         const key = String(item.id);
