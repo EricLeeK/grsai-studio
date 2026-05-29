@@ -9,13 +9,13 @@
   let candidates = [];
   let referenceImages = [];
   let selectedReferenceIds = new Set();
-  let ipReferenceIds = new Set(JSON.parse(localStorage.getItem('grsai_comic_ip_refs') || '[]'));
+  let ipReferenceIds = new Set();
   let selectedFiles = [];
   let currentFilter = 'all';
   let currentMode = 'preview';
   let currentPageIndex = 0;
   const candidateIndexByPage = new Map();
-  let promptLibrary = JSON.parse(localStorage.getItem('grsai_comic_prompts') || '{"cover":[],"numbered":[],"tail":[]}');
+  let promptLibrary = { cover: [], numbered: [], tail: [] };
   let autoPromptIds = new Set(JSON.parse(sessionStorage.getItem('grsai_comic_auto_prompt_ids') || '[]'));
 
   if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
@@ -161,7 +161,12 @@
     project = await res.json();
     projectName.textContent = project.name;
     candidates = [];
+    promptLibrary = { cover: [], numbered: [], tail: [] };
+    ipReferenceIds = new Set();
+    autoPromptIds = new Set();
+    sessionStorage.removeItem('grsai_comic_auto_prompt_ids');
     currentPageIndex = 0;
+    await Promise.all([loadPrompts(), loadIpReferences()]);
     renderPreview();
   }
 
@@ -186,6 +191,39 @@
     renderReferences();
   }
 
+  async function loadPrompts() {
+    if (!project) return;
+    const res = await fetch(`/api/comic/projects/${project.id}/prompts`);
+    if (!res.ok) return;
+    const items = await res.json();
+    promptLibrary = { cover: [], numbered: [], tail: [] };
+    for (const item of items) {
+      if (!promptLibrary[item.page_type]) promptLibrary[item.page_type] = [];
+      promptLibrary[item.page_type].push(item);
+    }
+    renderPromptLibrary();
+  }
+
+  async function loadIpReferences() {
+    if (!project) return;
+    const res = await fetch(`/api/comic/projects/${project.id}/ip-references`);
+    if (!res.ok) return;
+    const items = await res.json();
+    ipReferenceIds = new Set(items.map((img) => String(img.id)));
+    renderReferences();
+  }
+
+  async function saveIpReferences() {
+    if (!project) return;
+    await fetch(`/api/comic/projects/${project.id}/ip-references`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reference_image_ids: Array.from(ipReferenceIds).map((id) => parseInt(id, 10)),
+      }),
+    });
+  }
+
   function renderReferences() {
     const renderCard = (img, selected, extraClass = '') => `
       <button class="reference-select-card ${extraClass}${selected ? ' selected' : ''}" type="button" data-id="${img.id}" title="${esc(img.original_filename)}">
@@ -204,9 +242,9 @@
       btn.addEventListener('click', () => toggleSet(selectedReferenceIds, btn.dataset.id, renderReferences));
     });
     ipReferenceGrid.querySelectorAll('.reference-select-card').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         toggleSet(ipReferenceIds, btn.dataset.id, renderReferences);
-        localStorage.setItem('grsai_comic_ip_refs', JSON.stringify(Array.from(ipReferenceIds)));
+        await saveIpReferences();
       });
     });
   }
@@ -227,7 +265,7 @@
       const img = await res.json();
       ipReferenceIds.add(String(img.id));
     }
-    localStorage.setItem('grsai_comic_ip_refs', JSON.stringify(Array.from(ipReferenceIds)));
+    await saveIpReferences();
     await loadReferenceImages();
   }
 
@@ -436,17 +474,20 @@
         promptEl.value = item.text;
         switchLeftView('generate');
       };
-      card.querySelector('.prompt-edit').onclick = () => {
+      card.querySelector('.prompt-edit').onclick = async () => {
         const nextText = prompt('Edit prompt', item.text);
         if (nextText === null) return;
-        item.text = nextText.trim();
-        if (!item.text) {
-          promptLibrary[type] = prompts.filter((p) => p.id !== item.id);
-          autoPromptIds.delete(String(item.id));
-          sessionStorage.setItem('grsai_comic_auto_prompt_ids', JSON.stringify(Array.from(autoPromptIds)));
+        const text = nextText.trim();
+        if (!text) {
+          await deletePrompt(item.id);
+        } else {
+          await fetch(`/api/comic/prompts/${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
         }
-        localStorage.setItem('grsai_comic_prompts', JSON.stringify(promptLibrary));
-        renderPromptLibrary();
+        await loadPrompts();
       };
       card.querySelector('.prompt-auto').onclick = () => {
         const key = String(item.id);
@@ -455,13 +496,17 @@
         sessionStorage.setItem('grsai_comic_auto_prompt_ids', JSON.stringify(Array.from(autoPromptIds)));
         renderPromptLibrary();
       };
-      card.querySelector('.prompt-delete').onclick = () => {
-        promptLibrary[type] = prompts.filter((p) => p.id !== item.id);
-        localStorage.setItem('grsai_comic_prompts', JSON.stringify(promptLibrary));
-        autoPromptIds.delete(String(item.id));
-        renderPromptLibrary();
+      card.querySelector('.prompt-delete').onclick = async () => {
+        await deletePrompt(item.id);
+        await loadPrompts();
       };
     });
+  }
+
+  async function deletePrompt(id) {
+    await fetch(`/api/comic/prompts/${id}`, { method: 'DELETE' });
+    autoPromptIds.delete(String(id));
+    sessionStorage.setItem('grsai_comic_auto_prompt_ids', JSON.stringify(Array.from(autoPromptIds)));
   }
 
   function renderTasks() {
@@ -552,11 +597,15 @@
       const type = $('#promptPageType').value;
       const text = $('#savePromptText').value.trim();
       if (!text) return;
-      promptLibrary[type] = promptLibrary[type] || [];
-      promptLibrary[type].push({ id: Date.now(), text });
-      localStorage.setItem('grsai_comic_prompts', JSON.stringify(promptLibrary));
-      $('#savePromptText').value = '';
-      renderPromptLibrary();
+      fetch(`/api/comic/projects/${project.id}/prompts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_type: type, text }),
+      }).then(async (res) => {
+        if (!res.ok) throw new Error('Failed to save prompt');
+        $('#savePromptText').value = '';
+        await loadPrompts();
+      }).catch((err) => alert(err.message));
     });
     modelSelect.addEventListener('change', updateModelControls);
     uploadInput.addEventListener('change', () => {
@@ -597,7 +646,14 @@
     wireEvents();
     updateModelControls();
     await loadProject();
-    await Promise.all([loadReferenceImages(), loadTasks(), loadCandidates(), checkHealth()]);
+    await Promise.all([
+      loadReferenceImages(),
+      loadIpReferences(),
+      loadPrompts(),
+      loadTasks(),
+      loadCandidates(),
+      checkHealth(),
+    ]);
     setInterval(loadTasks, 5000);
     setInterval(loadCandidates, 7000);
     setInterval(checkHealth, 15000);

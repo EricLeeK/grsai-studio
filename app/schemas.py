@@ -82,3 +82,27 @@ class ComicCandidateOut(BaseModel):
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}
+
+
+class ComicPromptCreate(BaseModel):
+    page_type: str
+    text: str
+
+
+class ComicPromptUpdate(BaseModel):
+    text: str
+
+
+class ComicPromptOut(BaseModel):
+    id: int
+    comic_project_id: int
+    page_type: str
+    text: str
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ComicIPReferencesUpdate(BaseModel):
+    reference_image_ids: list[int]

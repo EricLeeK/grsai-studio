@@ -92,3 +92,35 @@ class ComicCandidate(Base):
     )
 
     project: Mapped["ComicProject"] = relationship(back_populates="candidates")
+
+
+class ComicPrompt(Base):
+    __tablename__ = "comic_prompts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    comic_project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("comic_projects.id"), nullable=False
+    )
+    page_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ComicIPReference(Base):
+    __tablename__ = "comic_ip_references"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    comic_project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("comic_projects.id"), nullable=False
+    )
+    reference_image_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("reference_images.id"), nullable=False
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )

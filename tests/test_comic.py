@@ -165,3 +165,61 @@ def test_selecting_comic_candidate_unselects_other_candidates(monkeypatch, tmp_p
     finally:
         db.close()
         app.dependency_overrides.clear()
+
+
+def test_comic_persistent_prompts_are_crud_via_backend(monkeypatch):
+    client, app, _ = make_test_client(monkeypatch)
+
+    try:
+        project_id = client.get("/api/comic/projects/current").json()["id"]
+        create_response = client.post(
+            f"/api/comic/projects/{project_id}/prompts",
+            json={"page_type": "cover", "text": "Fixed cover prompt"},
+        )
+
+        assert create_response.status_code == 201
+        prompt = create_response.json()
+        assert prompt["page_type"] == "cover"
+        assert prompt["text"] == "Fixed cover prompt"
+
+        update_response = client.patch(
+            f"/api/comic/prompts/{prompt['id']}",
+            json={"text": "Edited cover prompt"},
+        )
+        assert update_response.status_code == 200
+        assert update_response.json()["text"] == "Edited cover prompt"
+
+        list_response = client.get(f"/api/comic/projects/{project_id}/prompts")
+        assert [item["text"] for item in list_response.json()] == ["Edited cover prompt"]
+
+        delete_response = client.delete(f"/api/comic/prompts/{prompt['id']}")
+        assert delete_response.status_code == 204
+        assert client.get(f"/api/comic/projects/{project_id}/prompts").json() == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_comic_ip_reference_selection_is_persisted(monkeypatch, tmp_path):
+    import app.routers.reference_images as reference_images
+
+    monkeypatch.setattr(reference_images, "REFERENCE_IMAGE_DIR", tmp_path)
+    client, app, _ = make_test_client(monkeypatch)
+
+    try:
+        project_id = client.get("/api/comic/projects/current").json()["id"]
+        image = client.post(
+            "/api/reference-images",
+            files={"image": ("ip.png", b"fake-png", "image/png")},
+        ).json()
+
+        response = client.put(
+            f"/api/comic/projects/{project_id}/ip-references",
+            json={"reference_image_ids": [image["id"]]},
+        )
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()] == [image["id"]]
+        persisted = client.get(f"/api/comic/projects/{project_id}/ip-references")
+        assert [item["id"] for item in persisted.json()] == [image["id"]]
+    finally:
+        app.dependency_overrides.clear()
