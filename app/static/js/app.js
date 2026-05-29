@@ -16,6 +16,9 @@
   let currentView = 'generate';
   let promptLibrary = [];
   let savedPromptText = '';  // preserve prompt text during tab switch
+  let referenceImages = [];
+  const selectedReferenceIds = new Set();
+  let reusedReferencePaths = [];
 
   // ---- DOM refs ----
   const $ = (sel) => document.querySelector(sel);
@@ -30,6 +33,10 @@
   const uploadZone = $('#uploadZone');
   const uploadInput = $('#refImages');
   const uploadPreview = $('#uploadPreview');
+  const referenceSelectGrid = $('#referenceSelectGrid');
+  const referenceLibraryGrid = $('#referenceLibraryGrid');
+  const referenceLibraryInput = $('#referenceLibraryInput');
+  const referenceLibraryUploadBtn = $('#referenceLibraryUploadBtn');
   const submitBtn = $('#submitBtn');
   const taskList = $('#taskList');
   const taskEmpty = $('#taskEmpty');
@@ -144,6 +151,107 @@
     renderPromptLibrary();
   }
 
+  // ---- Reference Image Library (server persisted) ----
+
+  async function loadReferenceImages() {
+    try {
+      const res = await fetch('/api/reference-images');
+      if (!res.ok) return;
+      referenceImages = await res.json();
+      const validIds = new Set(referenceImages.map((img) => String(img.id)));
+      for (const id of Array.from(selectedReferenceIds)) {
+        if (!validIds.has(id)) selectedReferenceIds.delete(id);
+      }
+      renderReferenceLibrary();
+      renderReferencePicker();
+    } catch {
+      // Keep the current UI if the library request fails.
+    }
+  }
+
+  async function uploadReferenceLibraryFiles(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch('/api/reference-images', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `Failed to upload ${file.name}`);
+      }
+    }
+
+    await loadReferenceImages();
+  }
+
+  function toggleReferenceSelection(id) {
+    const key = String(id);
+    if (selectedReferenceIds.has(key)) selectedReferenceIds.delete(key);
+    else selectedReferenceIds.add(key);
+    renderReferencePicker();
+    renderReferenceLibrary();
+  }
+
+  function renderReferencePicker() {
+    if (!referenceSelectGrid) return;
+    if (referenceImages.length === 0) {
+      referenceSelectGrid.innerHTML = '<div class="reference-empty">No saved reference images yet.</div>';
+      return;
+    }
+    referenceSelectGrid.innerHTML = referenceImages.map((img) => {
+      const selected = selectedReferenceIds.has(String(img.id));
+      return `
+        <button class="reference-select-card${selected ? ' selected' : ''}" type="button" data-id="${img.id}" title="${esc(img.original_filename)}">
+          <img src="${esc(img.image_url)}" alt="${esc(img.original_filename)}" loading="lazy">
+          <span>${selected ? 'Selected' : 'Select'}</span>
+        </button>
+      `;
+    }).join('');
+
+    referenceSelectGrid.querySelectorAll('.reference-select-card').forEach((btn) => {
+      btn.addEventListener('click', () => toggleReferenceSelection(btn.dataset.id));
+    });
+  }
+
+  function renderReferenceLibrary() {
+    if (!referenceLibraryGrid) return;
+    if (referenceImages.length === 0) {
+      referenceLibraryGrid.innerHTML = '<div class="reference-empty">No saved reference images yet.</div>';
+      return;
+    }
+    referenceLibraryGrid.innerHTML = referenceImages.map((img) => {
+      const selected = selectedReferenceIds.has(String(img.id));
+      return `
+        <div class="reference-card${selected ? ' selected' : ''}" data-id="${img.id}">
+          <button class="reference-card-image" type="button" data-action="toggle" title="Use for next generation">
+            <img src="${esc(img.image_url)}" alt="${esc(img.original_filename)}" loading="lazy">
+          </button>
+          <div class="reference-card-meta">
+            <span>${esc(img.original_filename)}</span>
+            <button type="button" class="reference-delete" data-action="delete">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    referenceLibraryGrid.querySelectorAll('.reference-card').forEach((card) => {
+      const id = card.dataset.id;
+      card.querySelector('[data-action="toggle"]').addEventListener('click', () => {
+        toggleReferenceSelection(id);
+      });
+      card.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+        if (!confirm('Delete this reference image?')) return;
+        const res = await fetch(`/api/reference-images/${id}`, { method: 'DELETE' });
+        if (res.ok || res.status === 204) {
+          selectedReferenceIds.delete(String(id));
+          await loadReferenceImages();
+        }
+      });
+    });
+  }
+
   // ---- Form State Persistence (localStorage) ----
 
   function saveFormState() {
@@ -208,6 +316,7 @@
       tabGen.classList.remove('active');
       tabLib.classList.add('active');
       renderPromptLibrary();
+      renderReferenceLibrary();
     }
   }
 
@@ -221,6 +330,15 @@
     const outIdx = parts.indexOf('output');
     if (outIdx !== -1) return '/' + parts.slice(outIdx).join('/');
     return '';
+  }
+
+  function filenameFromPath(path) {
+    if (!path) return 'reference image';
+    return path.replace(/\\/g, '/').split('/').pop() || 'reference image';
+  }
+
+  function isLibraryReferencePath(path) {
+    return /[\\/]data[\\/]reference_images[\\/]/.test(path || '');
   }
 
   // ---- Health Check ----
@@ -295,6 +413,28 @@
     uploadInput.value = '';
   });
 
+  if (referenceLibraryInput) {
+    referenceLibraryInput.addEventListener('change', async () => {
+      try {
+        if (referenceLibraryUploadBtn) {
+          referenceLibraryUploadBtn.classList.add('is-uploading');
+          referenceLibraryUploadBtn.firstChild.textContent = 'Uploading';
+        }
+        await uploadReferenceLibraryFiles(referenceLibraryInput.files);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        if (referenceLibraryUploadBtn) {
+          referenceLibraryUploadBtn.classList.remove('is-uploading');
+          referenceLibraryUploadBtn.firstChild.textContent = 'Upload';
+        }
+        referenceLibraryInput.value = '';
+      }
+    });
+  }
+
+  $('#refreshReferenceBtn').addEventListener('click', loadReferenceImages);
+
   function addFiles(fileList) {
     for (const f of fileList) {
       if (f.type.startsWith('image/')) {
@@ -309,8 +449,27 @@
     renderPreviews();
   }
 
+  function removeReusedReferencePath(index) {
+    reusedReferencePaths.splice(index, 1);
+    renderPreviews();
+  }
+
   function renderPreviews() {
     uploadPreview.innerHTML = '';
+    reusedReferencePaths.forEach((path, i) => {
+      const div = document.createElement('div');
+      div.className = 'upload-thumb upload-thumb-reused';
+      div.title = path;
+      const label = document.createElement('span');
+      label.textContent = filenameFromPath(path);
+      const btn = document.createElement('button');
+      btn.className = 'upload-thumb-remove';
+      btn.textContent = '×';
+      btn.onclick = (e) => { e.preventDefault(); removeReusedReferencePath(i); };
+      div.appendChild(label);
+      div.appendChild(btn);
+      uploadPreview.appendChild(div);
+    });
     selectedFiles.forEach((file, i) => {
       const div = document.createElement('div');
       div.className = 'upload-thumb';
@@ -326,6 +485,31 @@
       uploadPreview.appendChild(div);
     });
   }
+
+  function clipboardFiles(event) {
+    const items = Array.from(event.clipboardData?.items || []);
+    return items
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item, index) => {
+        const file = item.getAsFile();
+        if (!file) return null;
+        if (file.name && file.name !== 'image.png') return file;
+        const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        return new File([file], `clipboard-${Date.now()}-${index}.${ext}`, { type: file.type });
+      })
+      .filter(Boolean);
+  }
+
+  document.addEventListener('paste', (e) => {
+    const files = clipboardFiles(e);
+    if (files.length === 0) return;
+    e.preventDefault();
+    if (currentView !== 'generate') switchView('generate');
+    selectedFiles.push(...files);
+    renderPreviews();
+    uploadZone.classList.add('paste-added');
+    setTimeout(() => uploadZone.classList.remove('paste-added'), 900);
+  });
 
   // ---- Form Submit ----
 
@@ -365,12 +549,24 @@
         if (params.quality) fd.append('quality', params.quality);
         fd.append('count', params.count);
         fd.append('parallel', params.parallel);
+        for (const id of selectedReferenceIds) {
+          fd.append('reference_image_ids', id);
+        }
+        for (const path of reusedReferencePaths) {
+          fd.append('ref_image_paths', path);
+        }
         for (const f of selectedFiles) {
           fd.append('ref_images', f);
         }
         res = await fetch('/api/tasks/upload', { method: 'POST', body: fd });
       } else {
         // JSON
+        if (selectedReferenceIds.size > 0) {
+          params.reference_image_ids = Array.from(selectedReferenceIds).map((id) => parseInt(id, 10));
+        }
+        if (reusedReferencePaths.length > 0) {
+          params.ref_image_paths = [...reusedReferencePaths];
+        }
         res = await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -389,7 +585,11 @@
       $('#prompt').value = '';
       savedPromptText = '';
       selectedFiles = [];
+      selectedReferenceIds.clear();
+      reusedReferencePaths = [];
       renderPreviews();
+      renderReferencePicker();
+      renderReferenceLibrary();
 
       // Poll immediately to show new task
       await pollTasks();
@@ -427,6 +627,37 @@
     pollTimer = setInterval(pollTasks, 5000);
   }
 
+  function applyTaskToForm(task) {
+    const params = task.params || {};
+    switchView('generate');
+
+    $('#prompt').value = task.prompt || '';
+    modelSelect.value = task.model || modelSelect.value;
+    updateSizeControl();
+    $('#ratio').value = params.ratio || '';
+    const activeSize = getActiveSizeSelect();
+    if (activeSize) activeSize.value = params.size || '';
+    $('#quality').value = params.quality || '';
+    $('#count').value = params.count || 1;
+    $('#parallel').checked = Boolean(params.parallel);
+
+    selectedFiles = [];
+    selectedReferenceIds.clear();
+    (params.reference_image_ids || []).forEach((id) => selectedReferenceIds.add(String(id)));
+
+    const hasLibraryIds = selectedReferenceIds.size > 0;
+    reusedReferencePaths = (params.ref_image_paths || [])
+      .filter((path) => path && !(hasLibraryIds && isLibraryReferencePath(path)));
+
+    savedPromptText = $('#prompt').value;
+    saveFormState();
+    renderPreviews();
+    renderReferencePicker();
+    renderReferenceLibrary();
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#prompt').focus();
+  }
+
   // ---- Filters ----
 
   $$('.filter-btn').forEach((btn) => {
@@ -462,24 +693,26 @@
 
     const seenIds = new Set();
 
-    // Render from top (newest first since tasks are sorted desc)
+    // Keep DOM order identical to the filtered task order.
+    let nextCardSlot = taskEmpty.nextSibling;
     for (const task of filtered) {
       const id = String(task.id);
       seenIds.add(id);
 
+      let card;
       if (existingCards.has(id)) {
         // Update existing card in place
-        updateCard(existingCards.get(id), task);
+        card = existingCards.get(id);
+        updateCard(card, task);
       } else {
         // Create new card
-        const card = buildCard(task);
-        // Insert after empty state or at the top
-        if (taskList.firstElementChild === taskEmpty || taskList.children.length === 0) {
-          taskList.appendChild(card);
-        } else {
-          taskList.insertBefore(card, taskList.firstElementChild);
-        }
+        card = buildCard(task);
       }
+
+      if (card !== nextCardSlot) {
+        taskList.insertBefore(card, nextCardSlot);
+      }
+      nextCardSlot = card.nextSibling;
     }
 
     // Remove cards that are no longer in the filtered list
@@ -562,6 +795,11 @@
     }
 
     card.innerHTML = `
+      <button class="task-reuse-btn" data-task-id="${task.id}" title="Reuse prompt, settings, and references">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </button>
       <button class="task-copy-btn" data-task-id="${task.id}" title="Copy prompt">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -600,6 +838,18 @@
     } else {
       stopDurationTicker(String(task.id));
     }
+
+    // Attach reuse handler
+    const reuseBtn = card.querySelector('.task-reuse-btn');
+    reuseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = reuseBtn.dataset.taskId;
+      const taskData = tasks.find((t) => String(t.id) === id);
+      if (!taskData) return;
+      applyTaskToForm(taskData);
+      reuseBtn.classList.add('reused');
+      setTimeout(() => reuseBtn.classList.remove('reused'), 1200);
+    });
 
     // Attach delete handler
     const deleteBtn = card.querySelector('.task-delete-btn');
@@ -722,6 +972,7 @@
 
   // ---- Init ----
   loadPromptLibrary();
+  loadReferenceImages();
   restoreFormState();
   updateSizeControl();
   checkHealth();

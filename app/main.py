@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import tasks
+from app.routers import publisher, reference_images, tasks
 from app.services.executor import shutdown_executor
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -13,6 +13,8 @@ BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Grsai Studio", version="0.1.0")
 
 app.include_router(tasks.router)
+app.include_router(publisher.router)
+app.include_router(reference_images.router)
 
 # Mount static assets
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -21,6 +23,14 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 output_dir = BASE_DIR.parent / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
+
+reference_image_dir = BASE_DIR.parent / "data" / "reference_images"
+reference_image_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/reference-images",
+    StaticFiles(directory=str(reference_image_dir)),
+    name="reference-images",
+)
 
 
 @app.on_event("startup")

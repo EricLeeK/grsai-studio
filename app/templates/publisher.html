@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeChat Publisher - Grsai Studio</title>
+  <link rel="stylesheet" href="/static/css/publisher.css?v=20260528-2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="publisher-app">
+    <header class="publisher-header">
+      <a class="back-link" href="/">← Back to Studio</a>
+      <div class="publisher-title">
+        <span class="title-mark">W</span>
+        <h1>WeChat Publisher</h1>
+      </div>
+      <div class="publisher-state" id="statusText">Ready</div>
+    </header>
+
+    <main class="publisher-layout">
+      <section class="input-pane">
+        <div class="pane-scroll">
+          <label class="field markdown-field">
+            <span>Markdown</span>
+            <textarea id="markdownInput" spellcheck="false" placeholder="# Title&#10;&#10;Paste your article here..."></textarea>
+          </label>
+
+          <div class="row-control">
+            <span class="row-label">Style</span>
+            <div class="segment" id="styleSegment">
+              <button type="button" class="segment-btn active" data-style="minimal">简洁</button>
+              <button type="button" class="segment-btn" data-style="business">商务</button>
+              <button type="button" class="segment-btn" data-style="tech">科技</button>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <label class="ghost-btn">
+              Upload .md
+              <input id="markdownFile" type="file" accept=".md,.markdown,text/markdown,text/plain">
+            </label>
+            <button class="primary-btn" id="convertBtn" type="button">Convert →</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="cover-section">
+            <div class="section-head">
+              <h2>Cover</h2>
+              <span id="coverMediaId">No media_id</span>
+            </div>
+
+            <label class="field">
+              <span>AI prompt</span>
+              <textarea id="coverPrompt" rows="3" placeholder="A polished editorial cover for this article..."></textarea>
+            </label>
+
+            <div class="button-row">
+              <label class="ghost-btn">
+                Upload cover
+                <input id="coverFile" type="file" accept="image/*">
+              </label>
+              <button class="secondary-btn" id="generateCoverBtn" type="button">AI task + upload</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="meta-grid">
+            <label class="field">
+              <span>Title</span>
+              <input id="titleInput" type="text" placeholder="Article title">
+            </label>
+            <label class="field">
+              <span>Author</span>
+              <input id="authorInput" type="text" placeholder="GRSai Studio">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Digest</span>
+            <textarea id="digestInput" rows="3" maxlength="120" placeholder="Short summary for WeChat..."></textarea>
+          </label>
+
+          <button class="publish-btn" id="draftBtn" type="button">Publish draft →</button>
+          <div class="result-line" id="resultLine"></div>
+        </div>
+      </section>
+
+      <section class="preview-pane">
+        <div class="preview-toolbar">
+          <div>
+            <h2>Preview</h2>
+            <span>Inline-styled WeChat HTML</span>
+          </div>
+          <button class="ghost-icon-btn" id="copyHtmlBtn" type="button" title="Copy HTML">Copy HTML</button>
+        </div>
+        <iframe id="previewFrame" title="WeChat HTML preview" sandbox=""></iframe>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/publisher.js?v=20260528-2"></script>
+</body>
+</html>

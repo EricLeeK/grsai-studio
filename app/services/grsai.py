@@ -1,9 +1,18 @@
-"""Wrapper around the Grsai generate.sh script."""
+"""Grsai image generation helpers."""
 
+import base64
+import json
 import logging
+import mimetypes
 import subprocess
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from app import config
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +24,111 @@ class GrsaiResult:
     success: bool
     image_path: str | None = None
     error: str | None = None
+
+
+def _image_to_data_url(path: str) -> str:
+    image_path = Path(path)
+    mime = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _request_json(url: str, payload: dict[str, Any], timeout: int = 1000) -> dict[str, Any]:
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {config.GRSAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _get_json(url: str, timeout: int = 60) -> dict[str, Any]:
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {config.GRSAI_API_KEY}"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def generate_image_direct(
+    prompt: str,
+    model: str,
+    output_dir: str,
+    ratio: str | None = None,
+    size: str | None = None,
+    quality: str | None = None,
+    ref_paths: list[str] | None = None,
+) -> GrsaiResult:
+    """Generate an image by calling the Grsai API directly from the app."""
+    if not config.GRSAI_API_KEY:
+        return GrsaiResult(success=False, error="GRSAI_API_KEY is not configured")
+
+    try:
+        images = []
+        for ref in ref_paths or []:
+            images.append(ref if ref.startswith("http") else _image_to_data_url(ref))
+
+        aspect = size if model.startswith("gpt-image-2") and size and "x" in size else (ratio or "auto")
+        payload: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "images": images,
+            "aspectRatio": aspect,
+            "replyType": "json",
+            "quality": quality or "auto",
+        }
+        if not model.startswith("gpt-image-2"):
+            payload["imageSize"] = size or "2K"
+
+        response = _request_json(f"{config.GRSAI_BASE_URL.rstrip('/')}/v1/api/generate", payload)
+        if response.get("status") == "running":
+            task_id = response.get("id")
+            if not task_id:
+                return GrsaiResult(success=False, error="Grsai async response missing task id")
+            response = _poll_result(task_id)
+
+        if response.get("status") in {"failed", "violation"}:
+            return GrsaiResult(success=False, error=response.get("error") or "Grsai generation failed")
+
+        results = response.get("results") or []
+        image_url = results[0].get("url") if results else ""
+        if not image_url:
+            return GrsaiResult(success=False, error="No image URL in Grsai response")
+
+        output = Path(output_dir)
+        output.mkdir(parents=True, exist_ok=True)
+        extension = image_url.split("?", 1)[0].rsplit(".", 1)[-1]
+        if not extension or "/" in extension or len(extension) > 5:
+            extension = "png"
+        image_path = output / f"grsai_{time.strftime('%Y%m%d_%H%M%S')}.{extension}"
+        urllib.request.urlretrieve(image_url, image_path)
+        if not image_path.exists() or image_path.stat().st_size == 0:
+            return GrsaiResult(success=False, error="Failed to download generated image")
+        return GrsaiResult(success=True, image_path=str(image_path))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        logger.error("Grsai HTTP error: %s", detail)
+        return GrsaiResult(success=False, error=detail)
+    except Exception as exc:
+        logger.error("Unexpected Grsai direct generation error: %s", exc)
+        return GrsaiResult(success=False, error=str(exc))
+
+
+def _poll_result(task_id: str) -> dict[str, Any]:
+    base_url = config.GRSAI_BASE_URL.rstrip("/")
+    for _ in range(200):
+        time.sleep(5)
+        response = _get_json(f"{base_url}/v1/api/result?id={task_id}")
+        status = response.get("status")
+        if status == "succeeded":
+            return response
+        if status in {"failed", "violation"}:
+            return response
+    return {"status": "failed", "error": f"Grsai task timed out: {task_id}"}
 
 
 def run_generate(

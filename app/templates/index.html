@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Grsai Studio</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=20260526-2">
+  <link rel="stylesheet" href="/static/css/style.css?v=20260529-reuse-paste">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -21,6 +21,10 @@
         </div>
       </div>
       <div class="header-right">
+        <a class="header-link" href="/publisher" title="Publish to WeChat">
+          <span>📤</span>
+          Publish
+        </a>
         <div class="header-status">
           <span class="health-dot" id="healthDot"></span>
           <span id="healthText">Connecting...</span>
@@ -195,15 +199,24 @@
 
             <!-- Reference Images Upload -->
             <div class="form-group">
-              <label>Reference Images</label>
+              <label>Reference Images for This Task</label>
               <div class="upload-zone" id="uploadZone">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="upload-icon" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="17 8 12 3 7 8"/>
                   <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                <span>Drop images here or click to browse</span>
+                <span>Drop temporary images here, click to browse, or paste with Command+V</span>
                 <input type="file" id="refImages" name="refImages" multiple accept="image/*" class="upload-input">
+              </div>
+              <div class="reference-picker">
+                <div class="reference-picker-head">
+                  <span>Saved References</span>
+                  <button class="reference-refresh" type="button" id="refreshReferenceBtn">Refresh</button>
+                </div>
+                <div class="reference-select-grid" id="referenceSelectGrid">
+                  <div class="reference-empty">No saved reference images yet.</div>
+                </div>
               </div>
               <div class="upload-preview" id="uploadPreview"></div>
             </div>
@@ -228,6 +241,21 @@
           </div>
           <div class="prompt-list" id="promptList">
             <div class="prompt-empty">No saved prompts yet.</div>
+          </div>
+          <div class="reference-library">
+            <div class="reference-library-head">
+              <div>
+                <h3>Reference Library</h3>
+                <span>Persistent images for reusable brand/IP references.</span>
+              </div>
+              <label class="reference-upload-btn" id="referenceLibraryUploadBtn">
+                Upload
+                <input type="file" id="referenceLibraryInput" accept="image/*" multiple>
+              </label>
+            </div>
+            <div class="reference-library-grid" id="referenceLibraryGrid">
+              <div class="reference-empty">No saved reference images yet.</div>
+            </div>
           </div>
         </div>
       </aside>
@@ -274,6 +302,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=20260526-2"></script>
+  <script src="/static/js/app.js?v=20260529-reuse-paste"></script>
 </body>
 </html>

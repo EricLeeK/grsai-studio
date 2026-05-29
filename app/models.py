@@ -39,3 +39,16 @@ class GeneratedImage(Base):
     )
 
     task: Mapped["Task"] = relationship(back_populates="images")
+
+
+class ReferenceImage(Base):
+    __tablename__ = "reference_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    original_filename: Mapped[str] = mapped_column(String, nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    image_path: Mapped[str] = mapped_column(String, nullable=False)
+    image_url: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )

@@ -209,6 +209,27 @@ button {
   font-weight: 600;
 }
 
+.header-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform var(--fast), background var(--fast);
+}
+
+.header-link:hover {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
 .health-dot {
   width: 8px;
   height: 8px;
@@ -340,18 +361,20 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1;
-  min-height: 0;
+  max-height: 36%;
+  min-height: 150px;
   overflow-y: auto;
 }
 
 .prompt-empty,
-.task-empty {
+.task-empty,
+.reference-empty {
   color: var(--text-muted);
   text-align: center;
 }
 
-.prompt-empty {
+.prompt-empty,
+.reference-empty {
   padding: 42px 12px;
   border: 1px dashed var(--line);
   border-radius: var(--radius-md);
@@ -424,6 +447,151 @@ button {
 .prompt-btn:hover {
   background: rgba(232, 226, 210, 0.09);
   border-color: var(--line-strong);
+}
+
+.reference-library {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.reference-library-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.reference-library-head h3 {
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 13px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.reference-library-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.reference-upload-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 11px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  overflow: hidden;
+}
+
+.reference-upload-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.reference-upload-btn.is-uploading {
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.reference-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.reference-card {
+  overflow: hidden;
+  background: rgba(34, 38, 31, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color var(--fast), background var(--fast), transform var(--fast);
+}
+
+.reference-card.selected {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.reference-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+
+.reference-card-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  background: var(--bg-input);
+  border: 0;
+  cursor: pointer;
+}
+
+.reference-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reference-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+}
+
+.reference-card-meta span {
+  min-width: 0;
+  color: var(--text-soft);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-delete,
+.reference-refresh {
+  min-height: 26px;
+  padding: 0 8px;
+  color: var(--rose);
+  background: rgba(228, 130, 120, 0.09);
+  border: 1px solid rgba(228, 130, 120, 0.26);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reference-refresh {
+  color: var(--blue);
+  background: rgba(114, 167, 199, 0.09);
+  border-color: rgba(114, 167, 199, 0.26);
 }
 
 /* ============================================================
@@ -590,6 +758,11 @@ select.form-input-hidden {
   transform: translateY(-1px);
 }
 
+.upload-zone.paste-added {
+  border-color: var(--green);
+  background: var(--status-succeeded-bg);
+}
+
 .upload-icon {
   width: 30px;
   height: 30px;
@@ -616,6 +789,92 @@ select.form-input-hidden {
   gap: 8px;
 }
 
+.reference-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reference-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reference-picker-head span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.reference-select-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reference-select-grid .reference-empty {
+  grid-column: 1 / -1;
+  padding: 18px 10px;
+}
+
+.reference-select-card {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  padding: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
+}
+
+.reference-select-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.reference-select-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(183, 211, 107, 0.2);
+}
+
+.reference-select-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reference-select-card span {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  min-height: 18px;
+  padding: 0 5px;
+  color: var(--text);
+  background: rgba(16, 17, 16, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 18px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.reference-select-card.selected span {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .upload-thumb {
   position: relative;
   width: 58px;
@@ -630,6 +889,28 @@ select.form-input-hidden {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.upload-thumb-reused {
+  display: flex;
+  align-items: flex-end;
+  padding: 7px;
+  background:
+    linear-gradient(135deg, rgba(114, 167, 199, 0.16), rgba(183, 211, 107, 0.08)),
+    var(--bg-elevated);
+}
+
+.upload-thumb-reused span {
+  color: var(--text-soft);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .upload-thumb-remove {
@@ -835,7 +1116,7 @@ select.form-input-hidden {
 .task-meta {
   flex: 1;
   min-width: 0;
-  padding-right: 56px;
+  padding-right: 96px;
 }
 
 .task-id {
@@ -1092,6 +1373,7 @@ select.form-input-hidden {
   height: 30px;
 }
 
+.task-reuse-btn,
 .task-copy-btn,
 .task-delete-btn {
   position: absolute;
@@ -1109,6 +1391,11 @@ select.form-input-hidden {
   transition: opacity var(--fast), transform var(--fast), background var(--fast), border-color var(--fast);
 }
 
+.task-reuse-btn {
+  right: 98px;
+  color: var(--accent);
+}
+
 .task-copy-btn {
   right: 58px;
   color: var(--blue);
@@ -1120,12 +1407,15 @@ select.form-input-hidden {
 }
 
 .task-card:hover .task-copy-btn,
+.task-card:hover .task-reuse-btn,
 .task-card:hover .task-delete-btn,
+.task-reuse-btn:focus-visible,
 .task-copy-btn:focus-visible,
 .task-delete-btn:focus-visible {
   opacity: 1;
 }
 
+.task-reuse-btn:hover,
 .task-copy-btn:hover,
 .task-delete-btn:hover {
   transform: translateY(-1px);
@@ -1133,10 +1423,18 @@ select.form-input-hidden {
   border-color: currentColor;
 }
 
+.task-reuse-btn svg,
 .task-copy-btn svg,
 .task-delete-btn svg {
   width: 15px;
   height: 15px;
+}
+
+.task-reuse-btn.reused {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
 }
 
 .task-copy-btn.copied {
@@ -1385,10 +1683,15 @@ select.form-input-hidden {
     align-self: flex-start;
   }
 
+  .task-reuse-btn,
   .task-copy-btn,
   .task-delete-btn {
     top: 14px;
     opacity: 1;
+  }
+
+  .task-reuse-btn {
+    right: 98px;
   }
 
   .task-images {

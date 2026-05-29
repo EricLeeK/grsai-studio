@@ -13,6 +13,7 @@ class TaskCreate(BaseModel):
     count: int = 1
     parallel: bool = False
     ref_image_paths: Optional[list[str]] = None
+    reference_image_ids: Optional[list[int]] = None
 
 
 class ImageOut(BaseModel):
@@ -35,5 +36,16 @@ class TaskOut(BaseModel):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     images: list[ImageOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class ReferenceImageOut(BaseModel):
+    id: int
+    original_filename: str
+    stored_filename: str
+    image_path: str
+    image_url: str
+    created_at: datetime.datetime
 
     model_config = {"from_attributes": True}

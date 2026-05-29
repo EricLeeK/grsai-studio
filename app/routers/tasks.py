@@ -1,13 +1,14 @@
 import logging
 import shutil
-import tempfile
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.config import TASK_REFERENCE_DIR
 from app.database import get_db
-from app.models import Task, GeneratedImage
+from app.models import Task, GeneratedImage, ReferenceImage
 from app.schemas import TaskCreate, TaskOut
 from app.services.executor import submit_task
 
@@ -16,16 +17,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
+def _reference_image_paths(db: Session, image_ids: list[int] | None) -> list[str]:
+    if not image_ids:
+        return []
+    images = db.query(ReferenceImage).filter(ReferenceImage.id.in_(image_ids)).all()
+    found_ids = {img.id for img in images}
+    missing_ids = [image_id for image_id in image_ids if image_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reference image not found: {missing_ids[0]}",
+        )
+    by_id = {img.id: img.image_path for img in images}
+    return [by_id[image_id] for image_id in image_ids]
+
+
 @router.post("", response_model=TaskOut, status_code=201)
 def create_task(body: TaskCreate, db: Session = Depends(get_db)):
     """Create a generation task and submit it to the executor."""
+    selected_ref_paths = _reference_image_paths(db, body.reference_image_ids)
+    ref_image_paths = (body.ref_image_paths or []) + selected_ref_paths
     params = {
         "ratio": body.ratio,
         "size": body.size,
         "quality": body.quality,
         "count": body.count,
         "parallel": body.parallel,
-        "ref_image_paths": body.ref_image_paths,
+        "ref_image_paths": ref_image_paths or None,
+        "reference_image_ids": body.reference_image_ids,
     }
     task = Task(prompt=body.prompt, model=body.model, params=params, status="pending")
     db.add(task)
@@ -47,6 +66,8 @@ def create_task_with_upload(
     quality: str = Form(None),
     count: int = Form(1),
     parallel: bool = Form(False),
+    reference_image_ids: list[int] = Form(default=[]),
+    ref_image_paths: list[str] = Form(default=[]),
     ref_images: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
@@ -54,13 +75,18 @@ def create_task_with_upload(
     # Save uploaded reference images to a temp directory
     saved_ref_paths: list[str] = []
     if ref_images:
-        ref_dir = Path(tempfile.mkdtemp(prefix="grsai_ref_"))
+        ref_dir = TASK_REFERENCE_DIR / uuid.uuid4().hex
+        ref_dir.mkdir(parents=True, exist_ok=True)
         for upload in ref_images:
-            dest = ref_dir / upload.filename
+            filename = Path(upload.filename or "reference.png").name
+            dest = ref_dir / filename
             with open(dest, "wb") as f:
                 shutil.copyfileobj(upload.file, f)
             saved_ref_paths.append(str(dest))
             logger.info("Saved reference image: %s", dest)
+
+    selected_ref_paths = _reference_image_paths(db, reference_image_ids)
+    all_ref_image_paths = ref_image_paths + selected_ref_paths + saved_ref_paths
 
     params = {
         "ratio": ratio,
@@ -68,7 +94,8 @@ def create_task_with_upload(
         "quality": quality,
         "count": count,
         "parallel": parallel,
-        "ref_image_paths": saved_ref_paths if saved_ref_paths else None,
+        "ref_image_paths": all_ref_image_paths or None,
+        "reference_image_ids": reference_image_ids or None,
     }
     task = Task(prompt=prompt, model=model, params=params, status="pending")
     db.add(task)
