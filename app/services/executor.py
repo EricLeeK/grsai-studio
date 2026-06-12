@@ -61,6 +61,7 @@ def _execute_task(task_id: int) -> None:
 
         # Mark as running
         task.status = "running"
+        task.error_message = None
         db.commit()
 
         params = task.params or {}
@@ -127,6 +128,7 @@ def _execute_sequential(
 
     if success_count > 0:
         task.status = "succeeded"
+        task.error_message = None
         db.commit()
     else:
         _mark_failed(db, task_id, last_error or "All generations failed")
@@ -182,6 +184,7 @@ def _execute_parallel(
 
     if success_count > 0:
         task.status = "succeeded"
+        task.error_message = None
         db.commit()
     else:
         _mark_failed(db, task_id, last_error or "All parallel generations failed")

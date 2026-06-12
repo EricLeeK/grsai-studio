@@ -25,7 +25,7 @@ DATABASE_URL = f"sqlite:///{DATA_DIR / 'grsai.db'}"
 
 # Grsai API config (from environment / .env)
 GRSAI_API_KEY = os.environ.get("GRSAI_API_KEY", "")
-GRSAI_BASE_URL = os.environ.get("GRSAI_BASE_URL", "https://grsaiapi.com")
+GRSAI_BASE_URL = os.environ.get("GRSAI_BASE_URL", "https://grsai.dakka.com.cn")
 
 # WeChat Official Account config
 WECHAT_APPID = os.environ.get("WECHAT_APPID", "")

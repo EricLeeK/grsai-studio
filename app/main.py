@@ -1,12 +1,12 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
 from app.routers import comic, publisher, reference_images, tasks
 from app.services.executor import shutdown_executor
+from app.templating import render_template
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -51,14 +51,14 @@ def health_check():
 
 @app.get("/")
 def serve_index():
-    return FileResponse(BASE_DIR / "templates" / "index.html")
+    return render_template("index.html")
 
 
 @app.get("/apps")
 def serve_apps():
-    return FileResponse(BASE_DIR / "templates" / "apps.html")
+    return render_template("apps.html")
 
 
 @app.get("/comic")
 def serve_comic():
-    return FileResponse(BASE_DIR / "templates" / "comic.html")
+    return render_template("comic.html")

@@ -9,8 +9,16 @@
   let tasks = [];
   let currentFilter = 'all';
   let pollTimer = null;
+  const TASK_PAGE_SIZE = 50;
+  let taskOffset = 0;
+  let hasMoreTasks = true;
+  let isLoadingTasks = false;
   let lightboxImages = [];
   let lightboxIndex = 0;
+  let lightboxScale = 1;
+  let lightboxFitScale = 1;
+  let lightboxPan = { x: 0, y: 0 };
+  let lightboxDrag = null;
   const durationTimers = new Map();   // taskId -> intervalId
   const frozenDurations = new Map();  // taskId -> final duration string
   let currentView = 'generate';
@@ -40,12 +48,21 @@
   const submitBtn = $('#submitBtn');
   const taskList = $('#taskList');
   const taskEmpty = $('#taskEmpty');
+  const loadMoreTasksBtn = $('#loadMoreTasksBtn');
+  const clearFailedBtn = $('#clearFailedBtn');
   const healthDot = $('#healthDot');
   const healthText = $('#healthText');
   const lightbox = $('#lightbox');
   const lightboxImg = $('#lightboxImg');
+  const lightboxViewport = $('#lightboxViewport');
   const lightboxInfo = $('#lightboxInfo');
   const lightboxDownload = $('#lightboxDownload');
+  const lightboxCompress = $('#lightboxCompress');
+  const lightboxZoom = $('#lightboxZoom');
+  const lightboxZoomIn = $('#lightboxZoomIn');
+  const lightboxZoomOut = $('#lightboxZoomOut');
+  const lightboxFit = $('#lightboxFit');
+  const lightboxReset = $('#lightboxReset');
 
   // ---- Helpers ----
 
@@ -81,6 +98,26 @@
     if (id !== undefined) {
       clearInterval(id);
       durationTimers.delete(taskId);
+    }
+  }
+
+  function isActiveTask(task) {
+    return task && (task.status === 'pending' || task.status === 'running');
+  }
+
+  function upsertTasks(nextTasks) {
+    const byId = new Map(tasks.map((task) => [String(task.id), task]));
+    nextTasks.forEach((task) => byId.set(String(task.id), task));
+    tasks = Array.from(byId.values()).sort((a, b) => b.id - a.id);
+  }
+
+  function updatePollingState() {
+    const shouldPoll = tasks.some(isActiveTask);
+    if (shouldPoll && pollTimer === null) {
+      pollTimer = setInterval(pollActiveTasks, 5000);
+    } else if (!shouldPoll && pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
     }
   }
 
@@ -591,8 +628,11 @@
       renderReferencePicker();
       renderReferenceLibrary();
 
-      // Poll immediately to show new task
-      await pollTasks();
+      // Show the new task immediately and poll only while it is active.
+      upsertTasks([data]);
+      renderTasks();
+      updatePollingState();
+      await pollActiveTasks();
 
       // Scroll to and highlight the new task card
       const newCard = taskList.querySelector(`.task-card[data-id="${data.id}"]`);
@@ -611,20 +651,69 @@
 
   // ---- Polling ----
 
-  async function pollTasks() {
+  async function loadTasks({ reset = false } = {}) {
+    if (isLoadingTasks) return;
+    isLoadingTasks = true;
+    if (loadMoreTasksBtn) {
+      loadMoreTasksBtn.disabled = true;
+      loadMoreTasksBtn.textContent = reset ? 'Loading...' : 'Loading more...';
+    }
     try {
-      const res = await fetch('/api/tasks');
+      const offset = reset ? 0 : taskOffset;
+      const res = await fetch(`/api/tasks?limit=${TASK_PAGE_SIZE}&offset=${offset}`);
       if (!res.ok) return;
-      tasks = await res.json();
+      const page = await res.json();
+      if (reset) {
+        tasks = page;
+        taskOffset = page.length;
+      } else {
+        upsertTasks(page);
+        taskOffset += page.length;
+      }
+      hasMoreTasks = page.length === TASK_PAGE_SIZE;
       renderTasks();
+      updatePollingState();
+    } catch {
+      // Silently ignore loading errors
+    } finally {
+      isLoadingTasks = false;
+      updateLoadMoreButton();
+    }
+  }
+
+  async function pollActiveTasks() {
+    const activeIds = tasks.filter(isActiveTask).map((task) => task.id);
+    if (activeIds.length === 0) {
+      updatePollingState();
+      return;
+    }
+
+    try {
+      const updated = await Promise.all(
+        activeIds.map(async (id) => {
+          const res = await fetch(`/api/tasks/${id}`);
+          return res.ok ? res.json() : null;
+        })
+      );
+      upsertTasks(updated.filter(Boolean));
+      renderTasks();
+      updatePollingState();
     } catch {
       // Silently ignore polling errors
     }
   }
 
   function startPolling() {
-    pollTasks();
-    pollTimer = setInterval(pollTasks, 5000);
+    updatePollingState();
+  }
+
+  function updateLoadMoreButton() {
+    if (!loadMoreTasksBtn) return;
+    loadMoreTasksBtn.classList.toggle('is-hidden', !hasMoreTasks);
+    loadMoreTasksBtn.disabled = isLoadingTasks;
+    if (!isLoadingTasks) {
+      loadMoreTasksBtn.textContent = 'Load more';
+    }
   }
 
   function applyTaskToForm(task) {
@@ -671,7 +760,42 @@
 
   // ---- Render Tasks ----
 
+  function failedTaskCount() {
+    return tasks.filter((t) => t.status === 'failed').length;
+  }
+
+  function updateClearFailedButton() {
+    if (!clearFailedBtn) return;
+    const count = failedTaskCount();
+    clearFailedBtn.disabled = count === 0;
+    clearFailedBtn.title = count === 0
+      ? 'No failed tasks to delete'
+      : `Delete ${count} failed ${count === 1 ? 'task' : 'tasks'}`;
+  }
+
+  async function deleteFailedTasks() {
+    const count = failedTaskCount();
+    if (count === 0) return;
+    if (!confirm(`Delete ${count} failed ${count === 1 ? 'task' : 'tasks'}?`)) return;
+
+    clearFailedBtn.disabled = true;
+    try {
+      const res = await fetch('/api/tasks/failed', { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Failed to delete failed tasks');
+      }
+      tasks = tasks.filter((t) => t.status !== 'failed');
+      renderTasks();
+    } catch (err) {
+      alert('Error: ' + err.message);
+      updateClearFailedButton();
+    }
+  }
+
   function renderTasks() {
+    updateClearFailedButton();
+    updateLoadMoreButton();
     const filtered = currentFilter === 'all'
       ? tasks
       : tasks.filter((t) => t.status === currentFilter);
@@ -776,22 +900,8 @@
       const src = renderableImages[0].src;
       thumbnailHtml = `<div class="task-thumbnail" data-task="${task.id}" data-index="0">
         <img class="task-thumbnail-img" src="${esc(src)}" alt="Preview" loading="lazy">
+        ${isCompressedImage(renderableImages[0]) ? '<span class="task-image-tag">已压缩</span>' : ''}
       </div>`;
-    }
-
-    // Full images gallery
-    let imagesHtml = '';
-    if (renderableImages.length > 0) {
-      const imgTags = renderableImages.map((img, i) => {
-        const src = img.src;
-        return `<div class="task-image-wrapper" data-task="${task.id}" data-index="${i}">
-          <img class="task-image" src="${esc(src)}" alt="Generated image ${i + 1}" loading="lazy">
-          <div class="task-image-overlay">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-          </div>
-        </div>`;
-      }).join('');
-      imagesHtml = `<div class="task-images">${imgTags}</div>`;
     }
 
     card.innerHTML = `
@@ -824,7 +934,6 @@
       <div class="task-details">${detailsHtml}</div>
       ${progressHtml}
       ${errorHtml}
-      ${imagesHtml}
     `;
 
     // Manage duration ticker
@@ -861,7 +970,7 @@
         const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
         if (res.ok || res.status === 204) {
           tasks = tasks.filter((t) => String(t.id) !== id);
-          card.remove();
+          renderTasks();
         }
       } catch {}
     });
@@ -884,8 +993,8 @@
       } catch {}
     });
 
-    // Attach lightbox click handlers (images gallery + thumbnail)
-    card.querySelectorAll('.task-image-wrapper, .task-thumbnail').forEach((wrapper) => {
+    // Attach lightbox click handler for the compact thumbnail.
+    card.querySelectorAll('.task-thumbnail').forEach((wrapper) => {
       wrapper.addEventListener('click', () => {
         const taskId = wrapper.dataset.task;
         const taskData = tasks.find((t) => String(t.id) === taskId);
@@ -907,6 +1016,10 @@
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   }
 
+  function isCompressedImage(img) {
+    return Boolean(img?.image_path && /\.compressed-q\d+-/.test(img.image_path));
+  }
+
   // ---- Lightbox ----
 
   function openLightbox(images, index) {
@@ -920,21 +1033,126 @@
     lightboxIndex = index;
     renderLightbox();
     lightbox.classList.add('open');
+    document.body.classList.add('detail-viewer-active');
     document.body.style.overflow = 'hidden';
   }
 
   function closeLightbox() {
-    lightbox.classList.remove('open');
+    lightbox.classList.remove('open', 'dragging');
+    document.body.classList.remove('detail-viewer-active');
     document.body.style.overflow = '';
+    lightboxViewport.classList.remove('dragging');
+    lightboxDrag = null;
   }
 
   function renderLightbox() {
     const img = lightboxImages[lightboxIndex];
     if (!img) return;
+    lightboxPan = { x: 0, y: 0 };
+    lightboxScale = 1;
+    lightboxFitScale = 1;
+    lightboxImg.onload = fitLightboxToScreen;
     lightboxImg.src = img.src;
+    if (lightboxImg.complete && lightboxImg.naturalWidth) {
+      requestAnimationFrame(fitLightboxToScreen);
+    }
     lightboxInfo.textContent = `Image ${lightboxIndex + 1} of ${lightboxImages.length}`;
     lightboxDownload.href = img.src;
     lightboxDownload.download = img.src.split('/').pop() || 'image.jpeg';
+    lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+    lightboxCompress.disabled = false;
+    applyLightboxTransform();
+  }
+
+  async function compressCurrentLightboxImage() {
+    const img = lightboxImages[lightboxIndex];
+    if (!img?.id) return;
+
+    lightboxCompress.disabled = true;
+    lightboxCompress.textContent = 'Compressing...';
+    try {
+      const res = await fetch(`/api/tasks/images/${img.id}/compress`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Failed to compress image');
+      }
+      const compressed = await res.json();
+      if (compressed.task_id) {
+        const taskRes = await fetch(`/api/tasks/${compressed.task_id}`);
+        if (taskRes.ok) {
+          upsertTasks([await taskRes.json()]);
+          renderTasks();
+        }
+      }
+      lightboxCompress.textContent = 'Compressed';
+      setTimeout(() => {
+        if (lightbox.classList.contains('open')) {
+          lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+          lightboxCompress.disabled = false;
+        }
+      }, 1200);
+    } catch (err) {
+      alert('Error: ' + err.message);
+      lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+      lightboxCompress.disabled = false;
+    }
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function calculateLightboxFitScale() {
+    const rect = lightboxViewport.getBoundingClientRect();
+    const naturalWidth = lightboxImg.naturalWidth || 1;
+    const naturalHeight = lightboxImg.naturalHeight || 1;
+    const availableWidth = Math.max(1, rect.width - 160);
+    const availableHeight = Math.max(1, rect.height - 140);
+    return Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1);
+  }
+
+  function applyLightboxTransform() {
+    lightboxImg.style.transform = `translate(calc(-50% + ${lightboxPan.x}px), calc(-50% + ${lightboxPan.y}px)) scale(${lightboxScale})`;
+    lightboxZoom.textContent = `${Math.round(lightboxScale * 100)}%`;
+  }
+
+  function fitLightboxToScreen() {
+    lightboxFitScale = calculateLightboxFitScale();
+    lightboxScale = lightboxFitScale;
+    lightboxPan = { x: 0, y: 0 };
+    applyLightboxTransform();
+  }
+
+  function resetLightboxToActualSize() {
+    lightboxScale = 1;
+    lightboxPan = { x: 0, y: 0 };
+    applyLightboxTransform();
+  }
+
+  function zoomLightboxAt(clientX, clientY, nextScale) {
+    const rect = lightboxViewport.getBoundingClientRect();
+    const oldScale = lightboxScale;
+    const minScale = Math.max(0.05, lightboxFitScale * 0.35);
+    const maxScale = Math.max(6, lightboxFitScale * 12);
+    const scale = clamp(nextScale, minScale, maxScale);
+    if (scale === oldScale) return;
+
+    const viewportCenterX = rect.left + rect.width / 2;
+    const viewportCenterY = rect.top + rect.height / 2;
+    const imagePointX = (clientX - viewportCenterX - lightboxPan.x) / oldScale;
+    const imagePointY = (clientY - viewportCenterY - lightboxPan.y) / oldScale;
+
+    lightboxScale = scale;
+    lightboxPan = {
+      x: clientX - viewportCenterX - imagePointX * scale,
+      y: clientY - viewportCenterY - imagePointY * scale,
+    };
+    applyLightboxTransform();
+  }
+
+  function zoomLightboxBy(multiplier) {
+    const rect = lightboxViewport.getBoundingClientRect();
+    zoomLightboxAt(rect.left + rect.width / 2, rect.top + rect.height / 2, lightboxScale * multiplier);
   }
 
   function lightboxPrev() {
@@ -953,12 +1171,68 @@
   $('#lightboxBackdrop').addEventListener('click', closeLightbox);
   $('#lightboxPrev').addEventListener('click', lightboxPrev);
   $('#lightboxNext').addEventListener('click', lightboxNext);
+  lightboxZoomIn.addEventListener('click', () => zoomLightboxBy(1.22));
+  lightboxZoomOut.addEventListener('click', () => zoomLightboxBy(1 / 1.22));
+  lightboxFit.addEventListener('click', fitLightboxToScreen);
+  lightboxReset.addEventListener('click', resetLightboxToActualSize);
+  lightboxCompress.addEventListener('click', compressCurrentLightboxImage);
+
+  lightboxViewport.addEventListener('wheel', (e) => {
+    if (!lightbox.classList.contains('open')) return;
+    e.preventDefault();
+    const multiplier = Math.exp(-e.deltaY * 0.0012);
+    zoomLightboxAt(e.clientX, e.clientY, lightboxScale * multiplier);
+  }, { passive: false });
+
+  lightboxViewport.addEventListener('pointerdown', (e) => {
+    if (!lightbox.classList.contains('open') || e.button !== 0) return;
+    lightboxDrag = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      panX: lightboxPan.x,
+      panY: lightboxPan.y,
+    };
+    lightbox.classList.add('dragging');
+    lightboxViewport.classList.add('dragging');
+    lightboxViewport.setPointerCapture(e.pointerId);
+  });
+
+  lightboxViewport.addEventListener('pointermove', (e) => {
+    if (!lightboxDrag || e.pointerId !== lightboxDrag.pointerId) return;
+    lightboxPan = {
+      x: lightboxDrag.panX + e.clientX - lightboxDrag.startX,
+      y: lightboxDrag.panY + e.clientY - lightboxDrag.startY,
+    };
+    applyLightboxTransform();
+  });
+
+  function endLightboxDrag(e) {
+    if (!lightboxDrag || e.pointerId !== lightboxDrag.pointerId) return;
+    lightbox.classList.remove('dragging');
+    lightboxViewport.classList.remove('dragging');
+    lightboxViewport.releasePointerCapture(e.pointerId);
+    lightboxDrag = null;
+  }
+
+  lightboxViewport.addEventListener('pointerup', endLightboxDrag);
+  lightboxViewport.addEventListener('pointercancel', endLightboxDrag);
 
   document.addEventListener('keydown', (e) => {
     if (!lightbox.classList.contains('open')) return;
     if (e.key === 'Escape') closeLightbox();
     if (e.key === 'ArrowLeft') lightboxPrev();
     if (e.key === 'ArrowRight') lightboxNext();
+    if (e.key === '+' || e.key === '=') zoomLightboxBy(1.22);
+    if (e.key === '-' || e.key === '_') zoomLightboxBy(1 / 1.22);
+    if (e.key === '0') fitLightboxToScreen();
+    if (e.key === '1') resetLightboxToActualSize();
+  });
+
+  window.addEventListener('resize', () => {
+    if (!lightbox.classList.contains('open')) return;
+    lightboxFitScale = calculateLightboxFitScale();
+    applyLightboxTransform();
   });
 
   // ---- Tab Switching ----
@@ -969,6 +1243,12 @@
     addPrompt(ta.value);
     ta.value = '';
   });
+  if (clearFailedBtn) {
+    clearFailedBtn.addEventListener('click', deleteFailedTasks);
+  }
+  if (loadMoreTasksBtn) {
+    loadMoreTasksBtn.addEventListener('click', () => loadTasks());
+  }
 
   // ---- Init ----
   loadPromptLibrary();
@@ -977,6 +1257,6 @@
   updateSizeControl();
   checkHealth();
   setInterval(checkHealth, 15000);
-  startPolling();
+  loadTasks({ reset: true }).then(startPolling);
 
 })();

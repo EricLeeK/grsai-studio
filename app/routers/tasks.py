@@ -3,18 +3,33 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import TASK_REFERENCE_DIR
+from app import config
 from app.database import get_db
 from app.models import Task, GeneratedImage, ReferenceImage
-from app.schemas import TaskCreate, TaskOut
+from app.schemas import ImageOut, TaskCreate, TaskOut
 from app.services.executor import submit_task
+from app.services.image_compression import ImageCompressionError, compress_image
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+def _delete_task_files(task: Task) -> None:
+    """Remove generated files and the task output directory."""
+    for img in (task.images or []):
+        if img.image_path:
+            p = Path(img.image_path)
+            if p.exists():
+                p.unlink()
+
+    task_output = config.OUTPUT_DIR / str(task.id)
+    if task_output.exists():
+        shutil.rmtree(task_output, ignore_errors=True)
 
 
 def _reference_image_paths(db: Session, image_ids: list[int] | None) -> list[str]:
@@ -123,8 +138,21 @@ def create_task_with_upload(
 
 
 @router.get("", response_model=list[TaskOut])
-def list_tasks(db: Session = Depends(get_db)):
-    return db.query(Task).order_by(Task.created_at.desc()).all()
+def list_tasks(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    status: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Task)
+    if status:
+        query = query.filter(Task.status.in_(status))
+    return (
+        query.order_by(Task.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{task_id}", response_model=TaskOut)
@@ -135,26 +163,46 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
     return task
 
 
+@router.post("/images/{image_id}/compress", response_model=ImageOut, status_code=201)
+def compress_generated_image(image_id: int, db: Session = Depends(get_db)):
+    image = db.query(GeneratedImage).filter(GeneratedImage.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    if not image.image_path:
+        raise HTTPException(status_code=400, detail="Image path is empty")
+
+    try:
+        compressed_path = compress_image(Path(image.image_path), quality=75)
+    except ImageCompressionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    compressed = GeneratedImage(task_id=image.task_id, image_path=str(compressed_path))
+    db.add(compressed)
+    db.commit()
+    db.refresh(compressed)
+    return compressed
+
+
+@router.delete("/failed")
+def delete_failed_tasks(db: Session = Depends(get_db)):
+    failed_tasks = db.query(Task).filter(Task.status == "failed").all()
+    deleted = len(failed_tasks)
+
+    for task in failed_tasks:
+        _delete_task_files(task)
+        db.delete(task)
+
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/{task_id}", status_code=204)
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Delete image files from disk
-    for img in (task.images or []):
-        if img.image_path:
-            p = Path(img.image_path)
-            if p.exists():
-                p.unlink()
-
-    # Delete the output directory for this task
-    from app.config import OUTPUT_DIR
-    task_output = OUTPUT_DIR / str(task_id)
-    if task_output.exists():
-        shutil.rmtree(task_output, ignore_errors=True)
-
-    # Delete from DB (cascade deletes images)
+    _delete_task_files(task)
     db.delete(task)
     db.commit()
     return None

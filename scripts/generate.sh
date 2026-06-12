@@ -17,8 +17,21 @@ fi
 
 # --- Config ---
 API_KEY="${GRSAI_API_KEY:?Error: GRSAI_API_KEY not set. Copy .env.example to .env and add your key.}"
-BASE_URL="${GRSAI_BASE_URL:-https://grsaiapi.com}"
+BASE_URL="${GRSAI_BASE_URL:-https://grsai.dakka.com.cn}"
 OUTPUT_DIR="${GRSAI_OUTPUT_DIR:-$HOME/Downloads}"
+
+API_BASE_URLS=()
+add_api_base_url() {
+  local url="${1%/}"
+  [[ -z "$url" ]] && return
+  for existing in "${API_BASE_URLS[@]}"; do
+    [[ "$existing" == "$url" ]] && return
+  done
+  API_BASE_URLS+=("$url")
+}
+add_api_base_url "$BASE_URL"
+add_api_base_url "https://grsai.dakka.com.cn"
+add_api_base_url "https://grsaiapi.com"
 
 # --- Defaults ---
 MODEL="nano-banana-pro-vip"
@@ -71,7 +84,7 @@ Options:
 
 Environment:
   GRSAI_API_KEY    (required) Your Grsai API key
-  GRSAI_BASE_URL   API base URL (default: https://grsaiapi.com)
+  GRSAI_BASE_URL   API base URL (default: https://grsai.dakka.com.cn)
   GRSAI_OUTPUT_DIR Default output directory (default: ~/Downloads)
 
 Examples:
@@ -130,7 +143,12 @@ fi
 
 REQUEST_BODY_FILE=$(mktemp)
 IMAGES_JSON_FILE=$(mktemp)
-trap 'rm -f "$REQUEST_BODY_FILE" "$IMAGES_JSON_FILE"' EXIT
+RESPONSE_BODY_FILE=$(mktemp)
+CURL_ERROR_FILE=$(mktemp)
+POLL_BODY_FILE=$(mktemp)
+POLL_ERROR_FILE=$(mktemp)
+DOWNLOAD_ERROR_FILE=$(mktemp)
+trap 'rm -f "$REQUEST_BODY_FILE" "$IMAGES_JSON_FILE" "$RESPONSE_BODY_FILE" "$CURL_ERROR_FILE" "$POLL_BODY_FILE" "$POLL_ERROR_FILE" "$DOWNLOAD_ERROR_FILE"' EXIT
 printf '%s' "$IMAGES_JSON" > "$IMAGES_JSON_FILE"
 
 # --- Build request body using python for safe JSON ---
@@ -171,11 +189,38 @@ echo "  Ratio: $ASPECT | Size: $SIZE" >&2
 [[ -n "$REFS" ]] && echo "  References: $REFS" >&2
 
 # --- Make API call ---
-RESPONSE=$(curl -s -X POST "${BASE_URL}/v1/api/generate" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/json" \
-  --data-binary "@${REQUEST_BODY_FILE}" \
-  --max-time 1000)
+RESPONSE=""
+LAST_GENERATE_ERROR=""
+for API_BASE_URL in "${API_BASE_URLS[@]}"; do
+  : > "$RESPONSE_BODY_FILE"
+  : > "$CURL_ERROR_FILE"
+  if HTTP_STATUS=$(curl --http1.1 -sS -w "%{http_code}" -o "$RESPONSE_BODY_FILE" -X POST "${API_BASE_URL}/v1/api/generate" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    --data-binary "@${REQUEST_BODY_FILE}" \
+    --max-time 1000 \
+    2>"$CURL_ERROR_FILE"); then
+    RESPONSE=$(<"$RESPONSE_BODY_FILE")
+    if [[ ! "$HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
+      echo "Generate request failed via ${API_BASE_URL} (HTTP ${HTTP_STATUS})" >&2
+      [[ -n "$RESPONSE" ]] && echo "$RESPONSE" >&2
+      exit 1
+    fi
+    BASE_URL="$API_BASE_URL"
+    break
+  else
+    CURL_EXIT=$?
+    CURL_ERROR=$(<"$CURL_ERROR_FILE")
+    LAST_GENERATE_ERROR="Generate request failed via ${API_BASE_URL} (curl exit ${CURL_EXIT}): ${CURL_ERROR:-no details from curl}"
+    echo "$LAST_GENERATE_ERROR" >&2
+  fi
+done
+
+if [[ -z "$RESPONSE" ]]; then
+  echo "All Grsai API nodes failed" >&2
+  [[ -n "$LAST_GENERATE_ERROR" ]] && echo "$LAST_GENERATE_ERROR" >&2
+  exit 1
+fi
 
 # --- Check for errors ---
 STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
@@ -195,8 +240,34 @@ if [[ "$STATUS" == "running" ]]; then
 
   for i in $(seq 1 "$POLL_ATTEMPTS"); do
     sleep "$POLL_INTERVAL"
-    POLL=$(curl -s "${BASE_URL}/v1/api/result?id=${TASK_ID}" \
-      -H "Authorization: Bearer ${API_KEY}")
+    POLL=""
+    LAST_POLL_ERROR=""
+    for API_BASE_URL in "$BASE_URL" "${API_BASE_URLS[@]}"; do
+      : > "$POLL_BODY_FILE"
+      : > "$POLL_ERROR_FILE"
+      if POLL_HTTP_STATUS=$(curl --http1.1 -sS -w "%{http_code}" -o "$POLL_BODY_FILE" "${API_BASE_URL}/v1/api/result?id=${TASK_ID}" \
+        -H "Authorization: Bearer ${API_KEY}" \
+        2>"$POLL_ERROR_FILE"); then
+        POLL=$(<"$POLL_BODY_FILE")
+        BASE_URL="$API_BASE_URL"
+        break
+      else
+        CURL_EXIT=$?
+        CURL_ERROR=$(<"$POLL_ERROR_FILE")
+        LAST_POLL_ERROR="Polling request failed via ${API_BASE_URL} (curl exit ${CURL_EXIT}): ${CURL_ERROR:-no details from curl}"
+        echo "$LAST_POLL_ERROR" >&2
+      fi
+    done
+    if [[ -z "$POLL" ]]; then
+      echo "All Grsai API nodes failed while polling" >&2
+      [[ -n "$LAST_POLL_ERROR" ]] && echo "$LAST_POLL_ERROR" >&2
+      exit 1
+    fi
+    if [[ ! "$POLL_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
+      echo "Polling request failed via ${BASE_URL} (HTTP ${POLL_HTTP_STATUS})" >&2
+      [[ -n "$POLL" ]] && echo "$POLL" >&2
+      exit 1
+    fi
     POLL_STATUS=$(echo "$POLL" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
 
     if [[ "$POLL_STATUS" == "succeeded" ]]; then
@@ -242,7 +313,12 @@ EXTENSION="${EXTENSION%%\?*}"
 FILENAME="grsai_${TIMESTAMP}.${EXTENSION}"
 OUTPUT_PATH="${OUTPUT_DIR}/${FILENAME}"
 
-curl -s -o "$OUTPUT_PATH" "$IMAGE_URL" --max-time 60
+curl --http1.1 -sS -fL -o "$OUTPUT_PATH" "$IMAGE_URL" --max-time 60 2>"$DOWNLOAD_ERROR_FILE" || {
+  CURL_EXIT=$?
+  CURL_ERROR=$(<"$DOWNLOAD_ERROR_FILE")
+  echo "Failed to download image (curl exit ${CURL_EXIT}): ${CURL_ERROR:-no details from curl}" >&2
+  exit 1
+}
 
 if [[ ! -f "$OUTPUT_PATH" ]] || [[ ! -s "$OUTPUT_PATH" ]]; then
   echo "Failed to download image" >&2

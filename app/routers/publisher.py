@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -18,11 +17,11 @@ from app.schemas import TaskOut
 from app.services.converter import ConverterError, convert_markdown_to_wechat_html
 from app.services.grsai import generate_image_direct
 from app.services.executor import submit_task
+from app.templating import render_template
 from app.services.wechat import WeChatClient, WeChatError
 
 router = APIRouter(tags=["publisher"])
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 PUBLISHER_OUTPUT_DIR = config.OUTPUT_DIR / "publisher"
 
 
@@ -62,7 +61,7 @@ class UploadCoverFromTaskRequest(BaseModel):
 
 @router.get("/publisher")
 def serve_publisher():
-    return FileResponse(TEMPLATES_DIR / "publisher.html")
+    return render_template("publisher.html")
 
 
 @router.post("/api/publisher/convert", response_model=ConvertResponse)

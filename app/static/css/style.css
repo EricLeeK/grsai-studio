@@ -1070,6 +1070,14 @@ select.form-input-hidden {
   padding-bottom: 1px;
 }
 
+.task-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
 .filter-btn {
   min-height: 32px;
   padding: 0 12px;
@@ -1095,6 +1103,37 @@ select.form-input-hidden {
   border-color: var(--accent-line);
 }
 
+.clear-failed-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--text-faint);
+  background: rgba(232, 226, 210, 0.035);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--fast), background var(--fast), border-color var(--fast), opacity var(--fast), transform var(--fast);
+}
+
+.clear-failed-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.clear-failed-btn:hover:not(:disabled) {
+  color: var(--rose);
+  background: var(--status-failed-bg);
+  border-color: rgba(228, 130, 120, 0.34);
+  transform: translateY(-1px);
+}
+
+.clear-failed-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.36;
+}
+
 /* ============================================================
    Task List
    ============================================================ */
@@ -1107,6 +1146,39 @@ select.form-input-hidden {
   min-height: 0;
   overflow-y: auto;
   padding: clamp(16px, 2vw, 24px);
+}
+
+.task-pagination {
+  flex-shrink: 0;
+  padding: 0 clamp(16px, 2vw, 24px) clamp(16px, 2vw, 24px);
+}
+
+.load-more-btn {
+  width: 100%;
+  min-height: 38px;
+  color: var(--text-soft);
+  background: rgba(232, 226, 210, 0.045);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background var(--fast), border-color var(--fast), color var(--fast);
+}
+
+.load-more-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(232, 226, 210, 0.075);
+  border-color: var(--line-strong);
+}
+
+.load-more-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.load-more-btn.is-hidden {
+  display: none;
 }
 
 .task-empty {
@@ -1149,6 +1221,8 @@ select.form-input-hidden {
   box-shadow: var(--shadow-card);
   animation: card-enter 260ms cubic-bezier(0.16, 1, 0.3, 1);
   transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
 }
 
 .task-card::before {
@@ -1433,6 +1507,23 @@ select.form-input-hidden {
   object-fit: cover;
 }
 
+.task-image-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: var(--shadow-sm);
+}
+
 .task-image-overlay {
   position: absolute;
   inset: 0;
@@ -1534,7 +1625,7 @@ select.form-input-hidden {
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 0;
 }
 
 .lightbox.open {
@@ -1544,50 +1635,121 @@ select.form-input-hidden {
 .lightbox-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(5, 6, 5, 0.86);
-  backdrop-filter: blur(14px);
+  background: rgba(5, 6, 5, 0.94);
+  backdrop-filter: blur(12px);
 }
 
 .lightbox-content {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  max-width: 92vw;
-  max-height: 92vh;
+  display: grid;
+  width: 100vw;
+  height: 100vh;
   z-index: 1;
+  overflow: hidden;
+}
+
+.lightbox-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.lightbox-viewport.dragging {
+  cursor: grabbing;
+}
+
+.lightbox.open,
+.lightbox.open .lightbox-content,
+.lightbox.open .lightbox-viewport,
+.lightbox.open .lightbox-img {
+  cursor: grab !important;
+}
+
+.lightbox.open.dragging,
+.lightbox.open.dragging .lightbox-content,
+.lightbox.open.dragging .lightbox-viewport,
+.lightbox.open.dragging .lightbox-img {
+  cursor: grabbing !important;
 }
 
 .lightbox-img {
   display: block;
-  max-width: 92vw;
-  max-height: 80vh;
-  object-fit: contain;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  max-height: none;
+  object-fit: none;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
+  transform-origin: center center;
+  will-change: transform;
+  user-select: none;
+  pointer-events: none;
 }
 
 .lightbox-close,
-.lightbox-nav {
+.lightbox-nav,
+.lightbox-tool {
   display: grid;
   place-items: center;
   color: var(--text);
   background: rgba(30, 33, 29, 0.78);
   border: 1px solid var(--line);
-  cursor: pointer;
+  cursor: pointer !important;
   transition: background var(--fast), border-color var(--fast), transform var(--fast);
 }
 
 .lightbox-close {
   position: absolute;
-  top: -48px;
-  right: 0;
+  top: 18px;
+  right: 18px;
   width: 38px;
   height: 38px;
   border-radius: 999px;
   font-size: 28px;
   line-height: 1;
+  z-index: 4;
+}
+
+.lightbox-toolbar {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(16, 17, 16, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.lightbox-tool {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+}
+
+.lightbox-tool svg {
+  width: 16px;
+  height: 16px;
+}
+
+.lightbox-zoom {
+  min-width: 48px;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
 }
 
 .lightbox-nav {
@@ -1598,29 +1760,35 @@ select.form-input-hidden {
   border-radius: 999px;
   font-size: 28px;
   transform: translateY(-50%);
+  z-index: 4;
 }
 
 .lightbox-close:hover,
-.lightbox-nav:hover {
+.lightbox-nav:hover,
+.lightbox-tool:hover {
   background: rgba(42, 47, 39, 0.92);
   border-color: var(--accent-line);
 }
 
 .lightbox-prev {
-  left: -62px;
+  left: 18px;
 }
 
 .lightbox-next {
-  right: -62px;
+  right: 18px;
 }
 
 .lightbox-bar {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: 100%;
-  padding-top: 12px;
+  pointer-events: none;
 }
 
 .lightbox-info {
@@ -1629,7 +1797,15 @@ select.form-input-hidden {
   font-weight: 700;
 }
 
-.lightbox-download {
+.lightbox-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.lightbox-download,
+.lightbox-compress {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1642,9 +1818,23 @@ select.form-input-hidden {
   font-weight: 800;
   text-decoration: none;
   transition: filter var(--fast), transform var(--fast);
+  pointer-events: auto;
+  cursor: pointer !important;
 }
 
-.lightbox-download:hover {
+.lightbox-compress {
+  color: var(--text);
+  background: rgba(30, 33, 29, 0.78);
+  border: 1px solid var(--line);
+}
+
+.lightbox-compress:disabled {
+  cursor: wait !important;
+  opacity: 0.62;
+}
+
+.lightbox-download:hover,
+.lightbox-compress:hover:not(:disabled) {
   filter: brightness(1.08);
   transform: translateY(-1px);
 }
@@ -1743,6 +1933,12 @@ select.form-input-hidden {
 
   .filter-bar {
     width: 100%;
+  }
+
+  .task-toolbar {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .form-row {

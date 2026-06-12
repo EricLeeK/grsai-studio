@@ -57,6 +57,7 @@
   const comicPageNav = $('#comicPageNav');
   const taskList = $('#taskList');
   const taskEmpty = $('#taskEmpty');
+  const clearFailedBtn = $('#clearFailedBtn');
 
   function esc(str) {
     const div = document.createElement('div');
@@ -510,6 +511,7 @@
   }
 
   function renderTasks() {
+    updateClearFailedButton();
     const filtered = currentFilter === 'all' ? tasks : tasks.filter((t) => t.status === currentFilter);
     if (filtered.length === 0) {
       taskEmpty.style.display = 'flex';
@@ -541,6 +543,39 @@
       `;
       card.querySelector('.task-reuse-btn').onclick = () => applyTaskToForm(task);
       taskList.appendChild(card);
+    }
+  }
+
+  function failedTaskCount() {
+    return tasks.filter((t) => t.status === 'failed').length;
+  }
+
+  function updateClearFailedButton() {
+    if (!clearFailedBtn) return;
+    const count = failedTaskCount();
+    clearFailedBtn.disabled = count === 0;
+    clearFailedBtn.title = count === 0
+      ? 'No failed tasks to delete'
+      : `Delete ${count} failed ${count === 1 ? 'task' : 'tasks'}`;
+  }
+
+  async function deleteFailedTasks() {
+    const count = failedTaskCount();
+    if (count === 0) return;
+    if (!confirm(`Delete ${count} failed ${count === 1 ? 'task' : 'tasks'}?`)) return;
+
+    clearFailedBtn.disabled = true;
+    try {
+      const res = await fetch('/api/tasks/failed', { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Failed to delete failed tasks');
+      }
+      tasks = tasks.filter((t) => t.status !== 'failed');
+      renderTasks();
+    } catch (err) {
+      alert(err.message);
+      updateClearFailedButton();
     }
   }
 
@@ -640,6 +675,9 @@
         renderTasks();
       });
     });
+    if (clearFailedBtn) {
+      clearFailedBtn.addEventListener('click', deleteFailedTasks);
+    }
   }
 
   async function init() {
