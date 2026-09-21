@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import TASK_REFERENCE_DIR
 from app import config
@@ -144,7 +144,7 @@ def list_tasks(
     status: list[str] | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Task)
+    query = db.query(Task).options(selectinload(Task.images))
     if status:
         query = query.filter(Task.status.in_(status))
     return (

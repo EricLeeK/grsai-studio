@@ -31,6 +31,10 @@ logs/
 # Alma
 .alma-snapshots/
 
+# poster-studio (vendored Next.js app; managed by scripts/setup-poster-studio.sh)
+poster-studio/
+poster-studio.pid
+
 # Env / secrets
 .env
 .env.local

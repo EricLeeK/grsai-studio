@@ -9,7 +9,7 @@
   let tasks = [];
   let currentFilter = 'all';
   let pollTimer = null;
-  const TASK_PAGE_SIZE = 50;
+  const TASK_PAGE_SIZE = 25;
   let taskOffset = 0;
   let hasMoreTasks = true;
   let isLoadingTasks = false;
@@ -20,13 +20,13 @@
   let lightboxPan = { x: 0, y: 0 };
   let lightboxDrag = null;
   const durationTimers = new Map();   // taskId -> intervalId
-  const frozenDurations = new Map();  // taskId -> final duration string
   let currentView = 'generate';
   let promptLibrary = [];
   let savedPromptText = '';  // preserve prompt text during tab switch
   let referenceImages = [];
   const selectedReferenceIds = new Set();
   let reusedReferencePaths = [];
+  const expandedTaskIds = new Set();  // task ids whose prompt is fully expanded
 
   // ---- DOM refs ----
   const $ = (sel) => document.querySelector(sel);
@@ -37,6 +37,7 @@
   const sizeSelect = $('#size');
   const sizeGpt = $('#sizeGpt');
   const sizeGptVip = $('#sizeGptVip');
+  const qualitySelect = $('#quality');
   const ratioGroup = $('#ratioGroup');
   const uploadZone = $('#uploadZone');
   const uploadInput = $('#refImages');
@@ -46,6 +47,7 @@
   const referenceLibraryInput = $('#referenceLibraryInput');
   const referenceLibraryUploadBtn = $('#referenceLibraryUploadBtn');
   const submitBtn = $('#submitBtn');
+  const clearFormBtn = $('#clearFormBtn');
   const taskList = $('#taskList');
   const taskEmpty = $('#taskEmpty');
   const loadMoreTasksBtn = $('#loadMoreTasksBtn');
@@ -63,6 +65,8 @@
   const lightboxZoomOut = $('#lightboxZoomOut');
   const lightboxFit = $('#lightboxFit');
   const lightboxReset = $('#lightboxReset');
+  const lightboxInfoBtn = $('#lightboxInfoBtn');
+  const lightboxInfoPanel = $('#lightboxInfoPanel');
 
   // ---- Helpers ----
 
@@ -72,9 +76,20 @@
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   }
 
-  function elapsed(created) {
-    const start = new Date(created + (created.endsWith('Z') ? '' : 'Z')).getTime();
-    const diff = Math.max(0, Date.now() - start);
+  function parseTaskTime(value) {
+    if (!value) return NaN;
+    return Date.parse(value + (/(Z|[+-]\d{2}:?\d{2})$/i.test(value) ? '' : 'Z'));
+  }
+
+  function taskDuration(task) {
+    return elapsed(task.created_at, task.status === 'running' ? undefined : task.updated_at);
+  }
+
+  function elapsed(created, ended) {
+    const start = parseTaskTime(created);
+    const end = ended === undefined ? Date.now() : parseTaskTime(ended);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return '—';
+    const diff = Math.max(0, end - start);
     const s = Math.floor(diff / 1000);
     if (s < 60) return `${s}s`;
     const m = Math.floor(s / 60);
@@ -84,7 +99,7 @@
   }
 
   function startDurationTicker(taskId, createdAt) {
-    if (durationTimers.has(taskId) || frozenDurations.has(taskId)) return;
+    if (durationTimers.has(taskId)) return;
     const update = () => {
       const span = taskList.querySelector(`.task-card[data-id="${taskId}"] .duration-value`);
       if (span) span.textContent = elapsed(createdAt);
@@ -241,7 +256,7 @@
       const selected = selectedReferenceIds.has(String(img.id));
       return `
         <button class="reference-select-card${selected ? ' selected' : ''}" type="button" data-id="${img.id}" title="${esc(img.original_filename)}">
-          <img src="${esc(img.image_url)}" alt="${esc(img.original_filename)}" loading="lazy">
+          <img src="/api/previews/reference/${img.id}" alt="${esc(img.original_filename)}" loading="lazy" decoding="async">
           <span>${selected ? 'Selected' : 'Select'}</span>
         </button>
       `;
@@ -263,7 +278,7 @@
       return `
         <div class="reference-card${selected ? ' selected' : ''}" data-id="${img.id}">
           <button class="reference-card-image" type="button" data-action="toggle" title="Use for next generation">
-            <img src="${esc(img.image_url)}" alt="${esc(img.original_filename)}" loading="lazy">
+            <img src="/api/previews/reference/${img.id}" alt="${esc(img.original_filename)}" loading="lazy" decoding="async">
           </button>
           <div class="reference-card-meta">
             <span>${esc(img.original_filename)}</span>
@@ -322,10 +337,27 @@
     if (state.parallel !== undefined) $('#parallel').checked = state.parallel;
   }
 
+  function isGpt4kModel(model) {
+    return ['gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'].includes(model);
+  }
+
+  function updateQualityControl() {
+    const model = modelSelect.value;
+    const supported = model === 'gpt-image-2.5-sunburst'
+      ? new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+      : model === 'gpt-image-2.5-flare'
+        ? new Set(['low', 'medium', 'high'])
+        : new Set(['', 'low', 'medium', 'high']);
+    Array.from(qualitySelect.options).forEach((option) => {
+      option.hidden = !supported.has(option.value);
+    });
+    if (!supported.has(qualitySelect.value)) qualitySelect.value = 'high';
+  }
+
   function getActiveSizeSelect() {
     const model = modelSelect.value;
     if (model === 'gpt-image-2') return sizeGpt;
-    if (model === 'gpt-image-2-vip') return sizeGptVip;
+    if (isGpt4kModel(model)) return sizeGptVip;
     return sizeSelect;
   }
 
@@ -363,9 +395,16 @@
 
   function imageUrl(imagePath) {
     if (!imagePath) return '';
-    const parts = imagePath.replace(/\\/g, '/').split('/');
-    const outIdx = parts.indexOf('output');
-    if (outIdx !== -1) return '/' + parts.slice(outIdx).join('/');
+    const norm = imagePath.replace(/\\/g, '/');
+    // Generated images served from /output
+    let idx = norm.indexOf('output/');
+    if (idx !== -1) return '/' + norm.slice(idx);
+    // Persistent reference library served from /reference-images
+    idx = norm.indexOf('reference_images/');
+    if (idx !== -1) return '/reference-images/' + norm.slice(idx + 'reference_images/'.length);
+    // Task-scoped references (clipboard / per-task uploads) served from /task-references
+    idx = norm.indexOf('task_references/');
+    if (idx !== -1) return '/task-references/' + norm.slice(idx + 'task_references/'.length);
     return '';
   }
 
@@ -376,6 +415,14 @@
 
   function isLibraryReferencePath(path) {
     return /[\\/]data[\\/]reference_images[\\/]/.test(path || '');
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes < 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    const value = bytes / Math.pow(1024, i);
+    return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
   }
 
   // ---- Health Check ----
@@ -407,7 +454,7 @@
       sizeSelect.style.display = 'none';
       sizeGpt.style.display = 'block';
       sizeGptVip.style.display = 'none';
-    } else if (model === 'gpt-image-2-vip') {
+    } else if (isGpt4kModel(model)) {
       sizeSelect.style.display = 'none';
       sizeGpt.style.display = 'none';
       sizeGptVip.style.display = 'block';
@@ -418,9 +465,9 @@
     }
   }
 
-  modelSelect.addEventListener('change', () => { updateSizeControl(); saveFormState(); });
+  modelSelect.addEventListener('change', () => { updateSizeControl(); updateQualityControl(); saveFormState(); });
   // Save form state on any relevant field change
-  [sizeSelect, sizeGpt, sizeGptVip, $('#quality')].forEach((el) => {
+  [sizeSelect, sizeGpt, sizeGptVip, qualitySelect].forEach((el) => {
     el.addEventListener('change', saveFormState);
   });
   $('#count').addEventListener('input', saveFormState);
@@ -494,15 +541,29 @@
   function renderPreviews() {
     uploadPreview.innerHTML = '';
     reusedReferencePaths.forEach((path, i) => {
+      const url = imageUrl(path);
+      const name = filenameFromPath(path);
       const div = document.createElement('div');
       div.className = 'upload-thumb upload-thumb-reused';
-      div.title = path;
+      div.title = name;
+      if (url) {
+        div.classList.add('is-clickable');
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = name;
+        img.loading = 'lazy';
+        div.appendChild(img);
+        div.addEventListener('click', (e) => {
+          if (e.target.closest('.upload-thumb-remove')) return;
+          openLightbox([{ image_path: path }], 0);
+        });
+      }
       const label = document.createElement('span');
-      label.textContent = filenameFromPath(path);
+      label.textContent = name;
       const btn = document.createElement('button');
       btn.className = 'upload-thumb-remove';
       btn.textContent = '×';
-      btn.onclick = (e) => { e.preventDefault(); removeReusedReferencePath(i); };
+      btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); removeReusedReferencePath(i); };
       div.appendChild(label);
       div.appendChild(btn);
       uploadPreview.appendChild(div);
@@ -560,7 +621,7 @@
       let size = null;
       if (model === 'gpt-image-2') {
         size = sizeGpt.value || null;
-      } else if (model === 'gpt-image-2-vip') {
+      } else if (isGpt4kModel(model)) {
         size = sizeGptVip.value || null;
       } else {
         size = sizeSelect.value || null;
@@ -747,6 +808,20 @@
     $('#prompt').focus();
   }
 
+  function clearForm() {
+    // Reset to a fresh start: clear prompt + all reference images.
+    // Generation settings (model/size/quality/count/parallel) are intentionally preserved.
+    $('#prompt').value = '';
+    savedPromptText = '';
+    selectedFiles = [];
+    reusedReferencePaths = [];
+    selectedReferenceIds.clear();
+    renderPreviews();
+    renderReferencePicker();
+    renderReferenceLibrary();
+    $('#prompt').focus();
+  }
+
   // ---- Filters ----
 
   $$('.filter-btn').forEach((btn) => {
@@ -859,6 +934,8 @@
     const status = task.status;
     const params = task.params || {};
     const images = task.images || [];
+    const isExpanded = expandedTaskIds.has(String(task.id));
+    const isLongPrompt = (task.prompt || '').length > 80;
 
     // Build detail chips
     let detailsHtml = '';
@@ -868,7 +945,7 @@
     if (params.count > 1) detailsHtml += `<span class="task-detail"><strong>Count:</strong> ${params.count}</span>`;
     detailsHtml += `<span class="task-detail"><strong>Created:</strong> ${formatTime(task.created_at)}</span>`;
     if (status === 'running' || status === 'succeeded') {
-      const dur = frozenDurations.get(String(task.id)) || elapsed(task.created_at);
+      const dur = taskDuration(task);
       detailsHtml += `<span class="task-detail"><strong>Duration:</strong> <span class="duration-value">${dur}</span></span>`;
     }
 
@@ -897,9 +974,9 @@
       .filter((img) => img.src);
 
     if (status === 'succeeded' && renderableImages.length > 0) {
-      const src = renderableImages[0].src;
+      const src = `/api/previews/generated/${renderableImages[0].id}`;
       thumbnailHtml = `<div class="task-thumbnail" data-task="${task.id}" data-index="0">
-        <img class="task-thumbnail-img" src="${esc(src)}" alt="Preview" loading="lazy">
+        <img class="task-thumbnail-img" src="${esc(src)}" alt="Preview" loading="lazy" decoding="async">
         ${isCompressedImage(renderableImages[0]) ? '<span class="task-image-tag">已压缩</span>' : ''}
       </div>`;
     }
@@ -925,7 +1002,8 @@
           ${thumbnailHtml}
           <div class="task-meta">
             <div class="task-id">#${task.id}</div>
-            <div class="task-prompt">${esc(truncate(task.prompt, 120))}</div>
+            <div class="task-prompt">${esc(task.prompt || '')}</div>
+            ${isLongPrompt ? `<button type="button" class="task-prompt-toggle" data-task-id="${task.id}">${isExpanded ? '收起' : '展开'}</button>` : ''}
             <span class="task-model">${esc(task.model)}</span>
           </div>
         </div>
@@ -936,14 +1014,12 @@
       ${errorHtml}
     `;
 
+    card.classList.toggle('task-card--expanded', isExpanded);
+
     // Manage duration ticker
     if (status === 'running') {
       startDurationTicker(String(task.id), task.created_at);
-    } else if (status === 'succeeded') {
-      if (!frozenDurations.has(String(task.id))) {
-        frozenDurations.set(String(task.id), elapsed(task.created_at));
-      }
-      stopDurationTicker(String(task.id));
+
     } else {
       stopDurationTicker(String(task.id));
     }
@@ -993,6 +1069,20 @@
       } catch {}
     });
 
+    // Attach prompt expand/collapse handler
+    const promptToggle = card.querySelector('.task-prompt-toggle');
+    if (promptToggle) {
+      promptToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = String(promptToggle.dataset.taskId);
+        const willExpand = !expandedTaskIds.has(id);
+        if (willExpand) expandedTaskIds.add(id);
+        else expandedTaskIds.delete(id);
+        card.classList.toggle('task-card--expanded', willExpand);
+        promptToggle.textContent = willExpand ? '收起' : '展开';
+      });
+    }
+
     // Attach lightbox click handler for the compact thumbnail.
     card.querySelectorAll('.task-thumbnail').forEach((wrapper) => {
       wrapper.addEventListener('click', () => {
@@ -1020,6 +1110,10 @@
     return Boolean(img?.image_path && /\.compressed-q\d+-/.test(img.image_path));
   }
 
+  function isCompressedSrc(src) {
+    return Boolean(src && /\.compressed-q\d+-/.test(src));
+  }
+
   // ---- Lightbox ----
 
   function openLightbox(images, index) {
@@ -1043,6 +1137,7 @@
     document.body.style.overflow = '';
     lightboxViewport.classList.remove('dragging');
     lightboxDrag = null;
+    if (lightboxInfoPanel) lightboxInfoPanel.hidden = true;
   }
 
   function renderLightbox() {
@@ -1051,22 +1146,89 @@
     lightboxPan = { x: 0, y: 0 };
     lightboxScale = 1;
     lightboxFitScale = 1;
-    lightboxImg.onload = fitLightboxToScreen;
+    lightboxImg.onload = () => {
+      fitLightboxToScreen();
+      if (!lightboxInfoPanel.hidden) populateLightboxInfo();
+    };
     lightboxImg.src = img.src;
     if (lightboxImg.complete && lightboxImg.naturalWidth) {
-      requestAnimationFrame(fitLightboxToScreen);
+      requestAnimationFrame(() => {
+        fitLightboxToScreen();
+        if (!lightboxInfoPanel.hidden) populateLightboxInfo();
+      });
     }
     lightboxInfo.textContent = `Image ${lightboxIndex + 1} of ${lightboxImages.length}`;
     lightboxDownload.href = img.src;
     lightboxDownload.download = img.src.split('/').pop() || 'image.jpeg';
-    lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+    lightboxCompress.textContent = isCompressedSrc(img.src) ? 'Compress Again' : 'Compress & Download';
     lightboxCompress.disabled = false;
+    if (!lightboxInfoPanel.hidden) populateLightboxInfo();
     applyLightboxTransform();
+  }
+
+  async function populateLightboxInfo() {
+    const img = lightboxImages[lightboxIndex];
+    if (!img) return;
+    const url = img.src;
+    const fileEl = $('#infoFile');
+    const dimEl = $('#infoDimensions');
+    const sizeEl = $('#infoSize');
+    const typeEl = $('#infoType');
+    if (fileEl) fileEl.textContent = decodeURIComponent(url.split('/').pop() || '—');
+    if (dimEl) {
+      dimEl.textContent = (lightboxImg.naturalWidth && lightboxImg.naturalHeight)
+        ? `${lightboxImg.naturalWidth} × ${lightboxImg.naturalHeight} px`
+        : '—';
+    }
+    if (sizeEl) sizeEl.textContent = '—';
+    if (typeEl) typeEl.textContent = '—';
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      const len = res.headers.get('Content-Length');
+      if (len && sizeEl) sizeEl.textContent = formatBytes(parseInt(len, 10));
+      const ct = res.headers.get('Content-Type');
+      if (ct && typeEl) typeEl.textContent = ct;
+    } catch {
+      // Keep placeholders if the HEAD request fails.
+    }
+  }
+
+  async function downloadImageBlob(url, filename) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('download failed');
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 1500);
+    } catch {
+      // Fallback: open the image directly in a new tab.
+      window.open(url, '_blank');
+    }
+  }
+
+  function rebuildLightboxImages(taskData, targetImageId) {
+    const renderable = (taskData.images || [])
+      .filter((im) => imageUrl(im.image_path))
+      .map((im) => ({ src: imageUrl(im.image_path), id: im.id }));
+    if (renderable.length === 0) return;
+    lightboxImages = renderable;
+    const targetIdx = renderable.findIndex((im) => im.id === targetImageId);
+    lightboxIndex = targetIdx >= 0 ? targetIdx : Math.min(lightboxIndex, renderable.length - 1);
+    renderLightbox();
   }
 
   async function compressCurrentLightboxImage() {
     const img = lightboxImages[lightboxIndex];
-    if (!img?.id) return;
+    if (!img?.id) {
+      alert('This image cannot be compressed here.');
+      return;
+    }
 
     lightboxCompress.disabled = true;
     lightboxCompress.textContent = 'Compressing...';
@@ -1077,23 +1239,37 @@
         throw new Error(err.detail || 'Failed to compress image');
       }
       const compressed = await res.json();
+      const compressedUrl = imageUrl(compressed.image_path);
+      const downloadName = (compressed.image_path || '').replace(/[\\/]/g, '/').split('/').pop() || 'compressed.jpg';
+
+      // Refresh task data and land the lightbox on the newly compressed image.
       if (compressed.task_id) {
         const taskRes = await fetch(`/api/tasks/${compressed.task_id}`);
         if (taskRes.ok) {
-          upsertTasks([await taskRes.json()]);
+          const taskData = await taskRes.json();
+          upsertTasks([taskData]);
           renderTasks();
+          rebuildLightboxImages(taskData, compressed.id);
         }
       }
-      lightboxCompress.textContent = 'Compressed';
+
+      // Download the compressed image.
+      if (compressedUrl) {
+        await downloadImageBlob(compressedUrl, downloadName);
+      }
+
+      lightboxCompress.textContent = 'Downloaded';
       setTimeout(() => {
         if (lightbox.classList.contains('open')) {
-          lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+          const current = lightboxImages[lightboxIndex];
+          lightboxCompress.textContent = isCompressedSrc(current?.src) ? 'Compress Again' : 'Compress & Download';
           lightboxCompress.disabled = false;
         }
-      }, 1200);
+      }, 1500);
     } catch (err) {
       alert('Error: ' + err.message);
-      lightboxCompress.textContent = isCompressedImage(img) ? 'Compress Again' : 'Compress';
+      const current = lightboxImages[lightboxIndex];
+      lightboxCompress.textContent = isCompressedSrc(current?.src) ? 'Compress Again' : 'Compress & Download';
       lightboxCompress.disabled = false;
     }
   }
@@ -1176,6 +1352,13 @@
   lightboxFit.addEventListener('click', fitLightboxToScreen);
   lightboxReset.addEventListener('click', resetLightboxToActualSize);
   lightboxCompress.addEventListener('click', compressCurrentLightboxImage);
+  if (lightboxInfoBtn) {
+    lightboxInfoBtn.addEventListener('click', () => {
+      const willShow = lightboxInfoPanel.hidden;
+      lightboxInfoPanel.hidden = !willShow;
+      if (willShow) populateLightboxInfo();
+    });
+  }
 
   lightboxViewport.addEventListener('wheel', (e) => {
     if (!lightbox.classList.contains('open')) return;
@@ -1249,12 +1432,16 @@
   if (loadMoreTasksBtn) {
     loadMoreTasksBtn.addEventListener('click', () => loadTasks());
   }
+  if (clearFormBtn) {
+    clearFormBtn.addEventListener('click', clearForm);
+  }
 
   // ---- Init ----
   loadPromptLibrary();
   loadReferenceImages();
   restoreFormState();
   updateSizeControl();
+  updateQualityControl();
   checkHealth();
   setInterval(checkHealth, 15000);
   loadTasks({ reset: true }).then(startPolling);

@@ -71,7 +71,8 @@ Options:
                    nano-banana: nano-banana, nano-banana-fast, nano-banana-2, nano-banana-2-cl,
                    nano-banana-2-4k-cl, nano-banana-pro, nano-banana-pro-cl, nano-banana-pro-vip,
                    nano-banana-pro-4k-vip
-                   gpt-image: gpt-image-2, gpt-image-2-vip
+                   gpt-image: gpt-image-2, gpt-image-2-vip,
+                              gpt-image-2.5-flare, gpt-image-2.5-sunburst (1K-4K)
   --ratio RATIO    Aspect ratio (default: auto)
                    auto, 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 5:4, 4:5, 21:9
                    nano-banana-2 extra: 1:4, 4:1, 1:8, 8:1

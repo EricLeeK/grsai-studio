@@ -619,6 +619,19 @@
     ratioGroup.style.display = isGpt ? 'none' : 'flex';
   }
 
+  function updateQualityControl() {
+    const model = modelSelect.value;
+    const supported = model === 'gpt-image-2.5-sunburst'
+      ? new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+      : model === 'gpt-image-2.5-flare'
+        ? new Set(['low', 'medium', 'high'])
+        : new Set(['', 'low', 'medium', 'high']);
+    Array.from(qualitySelect.options).forEach((option) => {
+      option.hidden = !supported.has(option.value);
+    });
+    if (!supported.has(qualitySelect.value)) qualitySelect.value = 'high';
+  }
+
   function wireEvents() {
     form.addEventListener('submit', submitTask);
     $('#newProjectBtn').addEventListener('click', newProject);
@@ -642,7 +655,7 @@
         await loadPrompts();
       }).catch((err) => alert(err.message));
     });
-    modelSelect.addEventListener('change', updateModelControls);
+    modelSelect.addEventListener('change', () => { updateModelControls(); updateQualityControl(); });
     uploadInput.addEventListener('change', () => {
       addFiles(uploadInput.files);
       uploadInput.value = '';
@@ -682,7 +695,8 @@
 
   async function init() {
     wireEvents();
-    updateModelControls();
+  updateModelControls();
+  updateQualityControl();
     await loadProject();
     await Promise.all([
       loadReferenceImages(),

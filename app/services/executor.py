@@ -16,13 +16,14 @@ logger = logging.getLogger(__name__)
 
 # Module-level executor – survives across requests
 _executor: ThreadPoolExecutor | None = None
+MAX_TASK_WORKERS = 10
 
 
 def get_executor() -> ThreadPoolExecutor:
     """Return the shared thread pool, creating it on first call."""
     global _executor
     if _executor is None:
-        _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="grsai")
+        _executor = ThreadPoolExecutor(max_workers=MAX_TASK_WORKERS, thread_name_prefix="grsai")
     return _executor
 
 

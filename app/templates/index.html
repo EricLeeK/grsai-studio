@@ -78,6 +78,8 @@
                 <optgroup label="GPT Image">
                   <option value="gpt-image-2">gpt-image-2</option>
                   <option value="gpt-image-2-vip" selected>gpt-image-2-vip</option>
+                  <option value="gpt-image-2.5-flare">gpt-image-2.5-flare (4K)</option>
+                  <option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst (4K)</option>
                 </optgroup>
               </select>
             </div>
@@ -184,6 +186,8 @@
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high" selected>high</option>
+                  <option value="xhigh">xhigh</option>
+                  <option value="max">max</option>
                 </select>
               </div>
               <div class="form-group">
@@ -226,12 +230,20 @@
             </div>
 
             <!-- Submit -->
-            <button type="submit" class="btn-submit" id="submitBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-              Generate
-            </button>
+            <div class="form-actions">
+              <button type="button" class="btn-clear" id="clearFormBtn" title="Clear prompt and all reference images">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>
+                </svg>
+                Clear
+              </button>
+              <button type="submit" class="btn-submit" id="submitBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Generate
+              </button>
+            </div>
           </form>
         </div><!-- /viewGenerate -->
         <!-- Prompt Library View -->
@@ -319,6 +331,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/></svg>
         </button>
         <span class="lightbox-zoom" id="lightboxZoom">100%</span>
+        <button class="lightbox-tool" id="lightboxInfoBtn" type="button" title="Image info" aria-label="Image info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </button>
       </div>
       <button class="lightbox-close" id="lightboxClose" type="button" aria-label="Close">&times;</button>
       <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&#8249;</button>
@@ -332,6 +347,15 @@
           <button class="lightbox-compress" id="lightboxCompress" type="button">Compress</button>
           <a class="lightbox-download" id="lightboxDownload" download>Download</a>
         </div>
+      </div>
+      <div class="lightbox-info-panel" id="lightboxInfoPanel" hidden>
+        <div class="lightbox-info-panel-title">Image Info</div>
+        <dl>
+          <div><dt>File</dt><dd id="infoFile">—</dd></div>
+          <div><dt>Dimensions</dt><dd id="infoDimensions">—</dd></div>
+          <div><dt>Size</dt><dd id="infoSize">—</dd></div>
+          <div><dt>Type</dt><dd id="infoType">—</dd></div>
+        </dl>
       </div>
     </div>
   </div>

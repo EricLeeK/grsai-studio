@@ -972,16 +972,41 @@ select.form-input-hidden {
 }
 
 .upload-thumb-reused {
+  position: relative;
   display: flex;
   align-items: flex-end;
   padding: 7px;
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(114, 167, 199, 0.16), rgba(183, 211, 107, 0.08)),
     var(--bg-elevated);
 }
 
+.upload-thumb-reused img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-thumb-reused.is-clickable {
+  cursor: zoom-in;
+}
+
+.upload-thumb-reused.is-clickable:hover {
+  border-color: var(--accent-line);
+}
+
 .upload-thumb-reused span {
-  color: var(--text-soft);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 16px 6px 5px;
+  background: linear-gradient(to top, rgba(16, 17, 16, 0.9), rgba(16, 17, 16, 0));
+  color: #fff8ee;
   font-size: 9px;
   font-weight: 800;
   line-height: 1.15;
@@ -989,7 +1014,7 @@ select.form-input-hidden {
   text-overflow: ellipsis;
   word-break: break-word;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -1008,6 +1033,41 @@ select.form-input-hidden {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
+}
+
+.form-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.form-actions .btn-submit {
+  flex: 1;
+  width: auto;
+}
+
+.btn-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 18px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+  transition: background var(--fast), border-color var(--fast), transform var(--fast);
+}
+
+.btn-clear:hover {
+  background: rgba(232, 226, 210, 0.08);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
 }
 
 .btn-submit {
@@ -1291,6 +1351,28 @@ select.form-input-hidden {
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+}
+
+.task-card--expanded .task-prompt {
+  -webkit-line-clamp: unset;
+}
+
+.task-prompt-toggle {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity var(--fast);
+}
+
+.task-prompt-toggle:hover {
+  opacity: 0.7;
+  text-decoration: underline;
 }
 
 .task-model {
@@ -1837,6 +1919,55 @@ select.form-input-hidden {
 .lightbox-compress:hover:not(:disabled) {
   filter: brightness(1.08);
   transform: translateY(-1px);
+}
+
+.lightbox-info-panel {
+  position: absolute;
+  top: 70px;
+  right: 18px;
+  z-index: 4;
+  width: 240px;
+  padding: 14px 16px;
+  background: rgba(16, 17, 16, 0.82);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+}
+
+.lightbox-info-panel[hidden] {
+  display: none;
+}
+
+.lightbox-info-panel-title {
+  margin-bottom: 12px;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lightbox-info-panel dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.lightbox-info-panel dt {
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lightbox-info-panel dd {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
 }
 
 /* ============================================================
