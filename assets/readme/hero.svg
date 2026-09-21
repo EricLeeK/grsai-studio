@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
+  <title id="title">Grsai Studio</title>
+  <desc id="desc">从提示词和参考图开始，完成图片生成、漫画分镜与微信公众号草稿发布的本地创作工作台。</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#e8e2d2" stroke-opacity=".045"/>
+    </pattern>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#d6ef82"/>
+      <stop offset="1" stop-color="#a8c85a"/>
+    </linearGradient>
+    <clipPath id="frame">
+      <rect width="1200" height="390" rx="28"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="390" fill="#101110"/>
+    <rect width="1200" height="390" fill="url(#grid)"/>
+    <circle cx="170" cy="-40" r="250" fill="#b7d36b" fill-opacity=".07"/>
+
+    <g transform="translate(58 48)">
+      <g>
+        <rect width="50" height="50" rx="10" fill="url(#accent)"/>
+        <text x="25" y="34" text-anchor="middle" fill="#1d250f" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" font-weight="800">G</text>
+        <text x="68" y="20" fill="#c4bda9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" letter-spacing="2">LOCAL CREATIVE CONSOLE</text>
+        <text x="68" y="45" fill="#8c8778" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">FASTAPI · SQLITE · GRSAI</text>
+      </g>
+
+      <text y="128" fill="#efeadc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="62" font-weight="780" letter-spacing="-2">Grsai Studio</text>
+      <text y="176" fill="#c4bda9" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="25" font-weight="600">把生成、筛选、编排和发布放进一个本地工作台</text>
+
+      <g transform="translate(0 225)">
+        <rect width="510" height="74" rx="10" fill="#171916" stroke="#e8e2d2" stroke-opacity=".14"/>
+        <circle cx="31" cy="27" r="5" fill="#7fd098"/>
+        <text x="48" y="34" fill="#efeadc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700">PROMPT → OUTPUT → PUBLISH</text>
+        <text x="23" y="59" fill="#8c8778" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="17">参考图复用 · 任务历史 · 分镜候选 · 微信草稿</text>
+      </g>
+    </g>
+
+    <g transform="translate(676 48)">
+      <path d="M32 64V265" fill="none" stroke="#b7d36b" stroke-opacity=".42" stroke-width="2"/>
+
+      <g>
+        <circle cx="32" cy="64" r="14" fill="#d6ef82"/>
+        <text x="32" y="70" text-anchor="middle" fill="#1d250f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800">1</text>
+        <rect x="62" y="20" width="402" height="88" rx="10" fill="#171916" stroke="#b7d36b" stroke-opacity=".45"/>
+        <text x="86" y="54" fill="#b7d36b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700" letter-spacing="1.5">IMAGE WORKBENCH</text>
+        <text x="86" y="83" fill="#efeadc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" font-weight="650">提示词、参考图与任务历史</text>
+      </g>
+
+      <g transform="translate(0 101)">
+        <circle cx="32" cy="64" r="14" fill="#22261f" stroke="#b7d36b" stroke-width="2"/>
+        <text x="32" y="70" text-anchor="middle" fill="#b7d36b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800">2</text>
+        <rect x="62" y="20" width="402" height="88" rx="10" fill="#171916" stroke="#e8e2d2" stroke-opacity=".15"/>
+        <text x="86" y="54" fill="#72a7c7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700" letter-spacing="1.5">PAPER COMIC</text>
+        <text x="86" y="83" fill="#efeadc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" font-weight="650">逐页生成、比较并锁定候选</text>
+      </g>
+
+      <g transform="translate(0 202)">
+        <circle cx="32" cy="64" r="14" fill="#22261f" stroke="#b7d36b" stroke-width="2"/>
+        <text x="32" y="70" text-anchor="middle" fill="#b7d36b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800">3</text>
+        <rect x="62" y="20" width="402" height="88" rx="10" fill="#171916" stroke="#e8e2d2" stroke-opacity=".15"/>
+        <text x="86" y="54" fill="#e2b15f" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700" letter-spacing="1.5">WECHAT PUBLISHER</text>
+        <text x="86" y="83" fill="#efeadc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="21" font-weight="650">文章转换、封面生成与草稿创建</text>
+      </g>
+    </g>
+  </g>
+</svg>
